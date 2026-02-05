@@ -1,7 +1,10 @@
-# Requirements for FP4 Quantization and Inference on RTX 5090 (Blackwell)
+# Requirements for FP4/INT8 Quantization and Inference on RTX 5090 (Blackwell)
 # 
-# This file contains all dependencies for running NVFP4 quantization with
-# true FP4 compute on NVIDIA Blackwell GPUs (RTX 5090, SM 10.0+)
+# This file contains all dependencies for running:
+#   - NVFP4 quantization with true FP4 compute (fp4_inference.py, fp4_quantization.py)
+#   - INT8 quantization via bitsandbytes (fp8_inference.py)
+# 
+# Optimized for NVIDIA Blackwell GPUs (RTX 5090, SM 10.0+)
 #
 # Install with:
 #   pip install -r requirements_fp4.txt --extra-index-url https://pypi.nvidia.com
@@ -64,6 +67,14 @@ opencv-python-headless>=4.8.0
 
 # AV for video decoding
 av>=10.0.0
+
+# =============================================================================
+# Alternative Quantization Methods
+# =============================================================================
+
+# bitsandbytes for INT8/INT4 quantization (used by fp8_inference.py)
+# Provides 8-bit and 4-bit quantization via LLM.int8() and QLoRA
+bitsandbytes>=0.45.0
 
 # =============================================================================
 # Additional Dependencies

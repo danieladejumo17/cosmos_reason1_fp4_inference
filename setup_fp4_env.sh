@@ -220,7 +220,7 @@ verify_installation() {
     echo "  Checking Python packages..."
     
     # Check key packages
-    PACKAGES=("torch" "transformers" "modelopt" "tensorrt_llm")
+    PACKAGES=("torch" "transformers" "modelopt" "tensorrt_llm" "bitsandbytes")
     ALL_OK=true
     
     for pkg in "${PACKAGES[@]}"; do
@@ -333,11 +333,14 @@ echo ""
 echo "  1. Activate the environment:"
 echo "     source $SCRIPT_DIR/activate_fp4.sh"
 echo ""
-echo "  2. Run FP4 quantization:"
+echo "  2. Run FP4 quantization (optional, for calibrated FP4):"
 echo "     python3 fp4_quantization.py --output_dir ./cosmos-fp4-engine"
 echo ""
-echo "  3. Run FP4 inference:"
+echo "  3. Run FP4 inference (NVFP4 on Blackwell Tensor Cores):"
 echo "     python3 fp4_inference.py --video_dir ./videos --engine_dir ./cosmos-fp4-engine"
+echo ""
+echo "  4. Run INT8 inference (bitsandbytes):"
+echo "     python3 fp8_inference.py --video_dir ./videos"
 echo ""
 
 if $CREATE_VENV; then
