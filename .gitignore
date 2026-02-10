@@ -109,3 +109,8 @@ credentials.json
 # =============================================================================
 .ipynb_checkpoints/
 *.ipynb_checkpoints
+
+
+# Datasets
+stu_dataset/data/
+stu_dataset/my_val.tar.gz

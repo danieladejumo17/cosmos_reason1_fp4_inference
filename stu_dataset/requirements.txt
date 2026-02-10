@@ -1,0 +1,26 @@
+# Requirements for STU Dataset Video Processing
+#
+# Install with:
+#   pip install -r requirements.txt
+#
+# Or use the virtual environment:
+#   source .stu_venv/bin/activate
+#   pip install -r requirements.txt
+
+# PyTorch for tensor operations
+torch>=2.0.0
+
+# OpenCV for video processing (headless for server environments)
+opencv-python-headless>=4.8.0
+
+# NumPy for numerical operations
+numpy>=1.24.0
+
+# Open3D for point cloud processing and 3D visualization
+open3d>=0.18.0
+
+# Pillow for image processing
+pillow>=10.0.0
+
+# SciPy for spatial transformations
+scipy>=1.10.0
