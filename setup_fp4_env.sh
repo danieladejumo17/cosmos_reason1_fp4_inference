@@ -164,6 +164,10 @@ install_pip_packages() {
     echo "  Ensuring CUDA 13 cuBLAS is installed..."
     pip install "nvidia-cublas>=13.0.0" --extra-index-url "$NVIDIA_INDEX" 2>/dev/null || true
     
+    # Fix numpy version if open3d installed numpy>=2 (tensorrt-llm requires <2)
+    echo "  Ensuring numpy<2 for TensorRT-LLM compatibility..."
+    pip install "numpy<2" 2>/dev/null || true
+    
     print_success "Python packages installed"
 }
 
@@ -220,7 +224,7 @@ verify_installation() {
     echo "  Checking Python packages..."
     
     # Check key packages
-    PACKAGES=("torch" "transformers" "modelopt" "tensorrt_llm" "bitsandbytes")
+    PACKAGES=("torch" "transformers" "modelopt" "tensorrt_llm" "bitsandbytes" "open3d")
     ALL_OK=true
     
     for pkg in "${PACKAGES[@]}"; do

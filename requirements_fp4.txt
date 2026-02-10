@@ -77,10 +77,18 @@ av>=10.0.0
 bitsandbytes>=0.45.0
 
 # =============================================================================
+# 3D Point Cloud and Visualization
+# =============================================================================
+
+# Open3D for point cloud processing and 3D visualization (used by stu_dataset)
+open3d>=0.18.0
+
+# =============================================================================
 # Additional Dependencies
 # =============================================================================
 
-# NumPy (version <2 required for compatibility)
+# NumPy (version <2 required for compatibility with TensorRT-LLM)
+# Note: open3d may try to install numpy>=2, but we need <2 for tensorrt-llm
 numpy<2
 
 # Pydantic for configuration validation

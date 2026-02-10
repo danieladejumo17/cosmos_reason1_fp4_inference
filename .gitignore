@@ -114,3 +114,4 @@ credentials.json
 # Datasets
 stu_dataset/data/
 stu_dataset/my_val.tar.gz
+stu_dataset/.stu_venv/
