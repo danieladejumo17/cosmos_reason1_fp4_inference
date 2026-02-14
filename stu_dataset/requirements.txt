@@ -24,3 +24,6 @@ pillow>=10.0.0
 
 # SciPy for spatial transformations
 scipy>=1.10.0
+
+# IPython kernel for Jupyter notebook support
+ipykernel>=7.0.0

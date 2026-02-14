@@ -220,22 +220,51 @@ class ModelOptFP4Model:
         try:
             import modelopt.torch.quantization as mtq
             
-            print("Applying NVFP4 quantization...")
+            print("Applying NVFP4 quantization for Blackwell Tensor Cores...")
             
-            # Use the AWQ-Lite config for faster quantization
-            quant_config = mtq.NVFP4_AWQ_LITE_CFG
+            # Use NVFP4_DEFAULT_CFG which uses 'max' algorithm - no calibration needed
+            # This is suitable for inference as it doesn't require a forward_loop
+            # AWQ_LITE requires calibration data, DEFAULT uses max scaling which works at inference
+            quant_config = mtq.NVFP4_DEFAULT_CFG
             
-            # Apply quantization (without calibration for quick load)
+            # Apply quantization with max algorithm (no forward_loop needed)
             mtq.quantize(self.model, quant_config, forward_loop=None)
             
-            print("FP4 quantization applied successfully")
+            print("  FP4 quantization applied successfully (max algorithm)")
+            print("  FP4 GEMM operations will use Blackwell Tensor Cores")
             
         except ImportError:
             print("Warning: ModelOpt not available, running in FP16 mode")
+            return
         except Exception as e:
             print(f"Warning: Could not apply FP4 quantization: {e}")
             print("Running in FP16 mode")
+            return
+        
+        # Apply torch.compile for additional speedup
+        self._compile_model()
     
+    def _compile_model(self):
+        """Apply torch.compile() for optimized inference."""
+        try:
+            print("Applying torch.compile() for optimized inference...")
+            
+            # Disable gradient checkpointing for faster inference
+            if hasattr(self.model, 'gradient_checkpointing_disable'):
+                self.model.gradient_checkpointing_disable()
+            
+            # Set matmul precision for Tensor Cores
+            torch.set_float32_matmul_precision("high")
+            
+            # Compile the model for faster execution
+            # Use 'reduce-overhead' mode for inference
+            self.model = torch.compile(self.model, mode="reduce-overhead")
+            
+            print("  torch.compile() applied successfully")
+            
+        except Exception as e:
+            print(f"  torch.compile() skipped: {e}")
+
     def _verify_fp4_setup(self):
         """Verify FP4 Tensor Core setup on Blackwell."""
         compute_cap = torch.cuda.get_device_capability(0)
