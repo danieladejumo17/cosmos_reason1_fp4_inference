@@ -73,14 +73,14 @@ Both methods use identical parameters (4 fps, 250x250 resolution, max 7 tokens) 
 ## Hardware Requirements
 
 - **GPU**: NVIDIA RTX 5090 (Blackwell, SM 10.0+) with 32 GB VRAM
-- **Environment**: [vast.ai](https://vast.ai) Docker instance (or any Docker environment with TensorRT-LLM)
-- **Docker image**: Must include TensorRT-LLM >= 1.1.0 and PyTorch >= 2.9.0 with CUDA
+- **Environment**: [vast.ai](https://vast.ai) Docker instance (or any Linux environment with NVIDIA drivers)
+- **Software**: Python 3.10+, NVIDIA drivers + CUDA toolkit (TensorRT-LLM and PyTorch are installed automatically by the setup script)
 
 ## Setup (vast.ai)
 
 ### 1. Provision a vast.ai instance
 
-Select an RTX 5090 instance with a Docker image that includes TensorRT-LLM (e.g., an NVIDIA NGC TensorRT-LLM container or a community image with the stack pre-installed).
+Select an RTX 5090 instance with a Docker image that includes NVIDIA drivers and CUDA toolkit (e.g., an NVIDIA NGC container or a community image with the CUDA stack). TensorRT-LLM and PyTorch are installed automatically by the setup script if not present.
 
 ### 2. Clone the repo
 

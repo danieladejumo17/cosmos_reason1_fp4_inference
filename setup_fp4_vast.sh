@@ -15,17 +15,20 @@
 #   1. Installs system build dependencies (gcc, wget, etc.)
 #   2. Builds OpenMPI 4.1.6 from source with internal PMIx
 #      (fixes MPI_Init hang in Docker/vast.ai containers)
-#   3. Installs flash-attn (required by Qwen2.5-VL vision encoder in TRT-LLM)
-#   4. Patches TensorRT-LLM to handle HuggingFace rope_type "default"
+#      NOTE: Must happen BEFORE TensorRT-LLM install because TRT-LLM's
+#      C++ bindings link against libmpi.so.40 at import time.
+#   3. Installs TensorRT-LLM, PyTorch, and Python dependencies (if not present)
+#   4. Installs flash-attn (required by Qwen2.5-VL vision encoder in TRT-LLM)
+#   5. Patches TensorRT-LLM to handle HuggingFace rope_type "default"
 #      (fixes Qwen2.5-VL/Cosmos-Reason1 model loading in TRT-LLM v1.1.0)
-#   5. Logs in to HuggingFace (for gated NVIDIA model access)
-#   6. Verifies the full stack works end-to-end
+#   6. Logs in to HuggingFace (for gated NVIDIA model access)
+#   7. Verifies the full stack works end-to-end
 #
 # Prerequisites:
 #   - vast.ai instance with RTX 5090 (Blackwell SM 10.0+)
-#   - Docker image with TensorRT-LLM >= 1.1.0 pre-installed
-#     (e.g. nvcr.io/nvidia/tensorrt-llm or similar)
-#   - PyTorch >= 2.9.0 with CUDA support
+#   - NVIDIA drivers + CUDA toolkit installed (nvidia-smi must work)
+#   - Python 3.10+ with pip
+#   - TensorRT-LLM and PyTorch will be installed automatically if not present
 #
 # Usage:
 #   bash setup_fp4_vast.sh                          # Full setup (interactive HF login)
@@ -100,6 +103,10 @@ if ! command -v nvidia-smi &>/dev/null; then
     fail "nvidia-smi not found. This script requires an NVIDIA GPU environment."
 fi
 
+if ! command -v python3 &>/dev/null; then
+    fail "python3 not found. This script requires Python 3.10+."
+fi
+
 GPU_NAME=$(nvidia-smi --query-gpu=name --format=csv,noheader 2>/dev/null | head -1)
 COMPUTE_CAP=$(nvidia-smi --query-gpu=compute_cap --format=csv,noheader 2>/dev/null | head -1)
 info "GPU: $GPU_NAME (SM $COMPUTE_CAP)"
@@ -112,17 +119,12 @@ else
     warn "Continuing setup anyway, but FP4 inference may not use hardware acceleration"
 fi
 
-python3 -c "import tensorrt_llm; print(f'TensorRT-LLM: {tensorrt_llm.__version__}')" 2>/dev/null \
-    || fail "TensorRT-LLM not found. Install it first or use an NVIDIA Docker image."
-python3 -c "import torch; assert torch.cuda.is_available()" 2>/dev/null \
-    || fail "PyTorch CUDA not available."
-
 info "Pre-flight checks passed"
 
 # =============================================================================
 # 1. System Dependencies
 # =============================================================================
-step "Step 1/5: Installing system build dependencies"
+step "Step 1/6: Installing system build dependencies"
 
 if [ "$EUID" -ne 0 ]; then SUDO="sudo"; else SUDO=""; fi
 
@@ -138,13 +140,18 @@ info "System build dependencies installed"
 # =============================================================================
 # 2. Build OpenMPI with Internal PMIx (Docker/vast.ai MPI Fix)
 # =============================================================================
-step "Step 2/5: Building OpenMPI with internal PMIx (Docker/vast.ai fix)"
+step "Step 2/6: Building OpenMPI with internal PMIx (Docker/vast.ai fix)"
 
 # Problem:
 #   Ubuntu 24.04 ships OpenMPI 4.1.6 with an ext3x PMIx module that depends
 #   on system PMIx 5.0.1. Inside Docker containers (especially vast.ai),
 #   MPI_Init hangs because orted cannot initialize a PMIx server -- the
 #   ext3x module expects PMIx v3.x wire protocol but finds PMIx 5.0.1.
+#
+# Why this must happen BEFORE TensorRT-LLM:
+#   TRT-LLM's C++ bindings (tensorrt_llm.bindings) link against libmpi.so.40
+#   at import time. Without a working OpenMPI on LD_LIBRARY_PATH, even
+#   `import tensorrt_llm` fails with: "libmpi.so.40: cannot open shared object"
 #
 # Fix:
 #   Rebuild OpenMPI 4.1.6 from source with --with-pmix=internal, which
@@ -222,10 +229,83 @@ MPIEOF
     info "Build directory cleaned up"
 fi
 
+# Activate OpenMPI library paths so TensorRT-LLM can find libmpi.so.40
+# during install-time import verification and all subsequent steps.
+if [ -d "$OMPI_INSTALL/lib" ]; then
+    export LD_LIBRARY_PATH="$OMPI_INSTALL/lib:${LD_LIBRARY_PATH}"
+    export LD_PRELOAD="$OMPI_INSTALL/lib/libmpi.so"
+    export PATH="$OMPI_INSTALL/bin:$PATH"
+    export OMPI_MCA_btl_vader_single_copy_mechanism=none
+    info "OpenMPI libraries activated (LD_LIBRARY_PATH + LD_PRELOAD)"
+else
+    warn "OpenMPI lib dir not found at $OMPI_INSTALL/lib -- TRT-LLM import may fail"
+fi
+
 # =============================================================================
-# 3. Install flash-attn (Required by Qwen2.5-VL Vision Encoder)
+# 3. Install TensorRT-LLM + PyTorch (if not already present)
 # =============================================================================
-step "Step 3/5: Installing flash-attn"
+step "Step 3/6: TensorRT-LLM and PyTorch"
+
+NEED_TRTLLM=false
+NEED_TORCH=false
+
+if python3 -c "import tensorrt_llm" 2>/dev/null; then
+    TRTLLM_VER=$(python3 -c "import tensorrt_llm; print(tensorrt_llm.__version__)" 2>&1 | grep -v "TensorRT LLM version" | tail -1)
+    info "TensorRT-LLM already installed: v${TRTLLM_VER}"
+else
+    NEED_TRTLLM=true
+fi
+
+if python3 -c "import torch; assert torch.cuda.is_available()" 2>/dev/null; then
+    TORCH_VER=$(python3 -c "import torch; print(torch.__version__)")
+    info "PyTorch already installed: v${TORCH_VER} (CUDA available)"
+else
+    NEED_TORCH=true
+fi
+
+if [ "$NEED_TORCH" = true ] && [ "$NEED_TRTLLM" = true ]; then
+    info "Installing TensorRT-LLM (this will also install PyTorch + TensorRT + CUDA deps)..."
+    info "This may take several minutes on first install..."
+    pip install --upgrade pip 2>&1 | tail -1 || true
+    pip install "tensorrt-llm>=1.1.0" \
+        --extra-index-url https://pypi.nvidia.com \
+        2>&1 | tail -5
+    info "TensorRT-LLM installed"
+elif [ "$NEED_TRTLLM" = true ]; then
+    info "Installing TensorRT-LLM..."
+    pip install "tensorrt-llm>=1.1.0" \
+        --extra-index-url https://pypi.nvidia.com \
+        2>&1 | tail -5
+    info "TensorRT-LLM installed"
+elif [ "$NEED_TORCH" = true ]; then
+    info "Installing PyTorch with CUDA support..."
+    pip install "torch>=2.9.0" \
+        --extra-index-url https://download.pytorch.org/whl/cu128 \
+        2>&1 | tail -5
+    info "PyTorch installed"
+fi
+
+# Install remaining Python dependencies from requirements file
+if [ -f "$SCRIPT_DIR/requirements_fp4.txt" ]; then
+    info "Installing Python dependencies from requirements_fp4.txt..."
+    pip install -r "$SCRIPT_DIR/requirements_fp4.txt" \
+        --extra-index-url https://pypi.nvidia.com \
+        2>&1 | tail -5
+    info "Python dependencies installed"
+fi
+
+# Verify critical packages are now available
+python3 -c "import tensorrt_llm; print(f'TensorRT-LLM: {tensorrt_llm.__version__}')" 2>/dev/null \
+    || fail "TensorRT-LLM installation failed. Check pip output above."
+python3 -c "import torch; assert torch.cuda.is_available()" 2>/dev/null \
+    || fail "PyTorch CUDA not available after installation. Check CUDA drivers."
+
+info "TensorRT-LLM and PyTorch verified"
+
+# =============================================================================
+# 4. Install flash-attn (Required by Qwen2.5-VL Vision Encoder)
+# =============================================================================
+step "Step 4/6: Installing flash-attn"
 
 # TensorRT-LLM's Qwen2.5-VL model sets _attn_implementation='flash_attention_2'
 # for the vision encoder. Without flash-attn, model loading fails with:
@@ -242,9 +322,9 @@ else
 fi
 
 # =============================================================================
-# 4. Patch TensorRT-LLM for Qwen2.5-VL NVFP4 Compatibility
+# 5. Patch TensorRT-LLM for Qwen2.5-VL / Cosmos NVFP4 Compatibility
 # =============================================================================
-step "Step 4/5: Patching TensorRT-LLM for Qwen2.5-VL NVFP4 model"
+step "Step 5/6: Patching TensorRT-LLM for Qwen2.5-VL / Cosmos NVFP4 models"
 
 # Problem:
 #   The nvidia/Qwen2.5-VL-7B-Instruct-NVFP4 model has a config where:
@@ -266,7 +346,7 @@ step "Step 4/5: Patching TensorRT-LLM for Qwen2.5-VL NVFP4 model"
 TRTLLM_FUNCTIONAL=$(python3 -c "
 import tensorrt_llm, os
 print(os.path.join(os.path.dirname(tensorrt_llm.__file__), 'functional.py'))
-")
+" 2>/dev/null | tail -1)
 
 if [ ! -f "$TRTLLM_FUNCTIONAL" ]; then
     fail "Cannot find tensorrt_llm/functional.py at: $TRTLLM_FUNCTIONAL"
@@ -278,44 +358,6 @@ if grep -q "'default': 'none'" "$TRTLLM_FUNCTIONAL" 2>/dev/null; then
     info "RotaryScalingType patch already applied"
 else
     info "Patching RotaryScalingType.from_string() ..."
-    python3 << 'PYEOF'
-import re
-
-path = r"""TRTLLM_FUNCTIONAL_PATH"""
-with open(path, "r") as f:
-    content = f.read()
-
-# Patch RotaryScalingType.from_string
-old_rotary = '''    @staticmethod
-    def from_string(s):
-        try:
-            return RotaryScalingType[s]
-        except KeyError:
-            raise ValueError(f'Unsupported rotary scaling type: {s}')'''
-
-new_rotary = '''    @staticmethod
-    def from_string(s):
-        # Map HuggingFace rope_type names to TRT-LLM rotary scaling types
-        _aliases = {
-            'default': 'none',
-        }
-        s = _aliases.get(s, s)
-        try:
-            return RotaryScalingType[s]
-        except KeyError:
-            raise ValueError(f'Unsupported rotary scaling type: {s}')'''
-
-if old_rotary in content:
-    content = content.replace(old_rotary, new_rotary)
-    with open(path, "w") as f:
-        f.write(content)
-    print("  RotaryScalingType patched")
-else:
-    print("  RotaryScalingType: pattern not found (may already be patched or different version)")
-PYEOF
-    # Replace placeholder with actual path
-    sed -i "s|TRTLLM_FUNCTIONAL_PATH|$TRTLLM_FUNCTIONAL|g" /dev/stdin 2>/dev/null || true
-    # Actually run it properly:
     python3 -c "
 path = '$TRTLLM_FUNCTIONAL'
 with open(path, 'r') as f:
@@ -393,9 +435,9 @@ fi
 info "TensorRT-LLM patches applied"
 
 # =============================================================================
-# 5. HuggingFace Login (for Gated NVIDIA Model)
+# 6. HuggingFace Login (for Gated NVIDIA Models)
 # =============================================================================
-step "Step 5/5: HuggingFace authentication"
+step "Step 6/6: HuggingFace authentication"
 
 # The NVIDIA models are gated on HuggingFace. You must:
 #   1. Accept the license at https://huggingface.co/nvidia/Cosmos-Reason1-7B
@@ -486,12 +528,13 @@ step "Setup Complete"
 echo -e "
 ${GREEN}FP4 environment is ready for Blackwell Tensor Core inference.${NC}
 
-Fixes applied:
+Setup applied:
   1. OpenMPI ${OMPI_VERSION} with internal PMIx  →  ${OMPI_INSTALL}/
-     (fixes MPI_Init hang in Docker/vast.ai)
-  2. flash-attn installed
+     (fixes MPI_Init hang in Docker/vast.ai; built first so TRT-LLM can link libmpi.so)
+  2. TensorRT-LLM + PyTorch + Python dependencies installed
+  3. flash-attn installed
      (required by Qwen2.5-VL vision encoder)
-  3. TensorRT-LLM patched: RotaryScalingType + PositionEmbeddingType
+  4. TensorRT-LLM patched: RotaryScalingType + PositionEmbeddingType
      (fixes 'default' rope_type in Qwen2.5-VL/Cosmos NVFP4 config)
 
 Usage (Cosmos-Reason1-7B FP4 -- recommended):
