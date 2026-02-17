@@ -1,0 +1,117 @@
+{
+  "config": {
+    "engine": "TensorRT-LLM",
+    "model": "nvidia/Qwen2.5-VL-7B-Instruct-NVFP4",
+    "quantization": "NVFP4",
+    "compute_type": "FP4 Tensor Core GEMM (Blackwell native)",
+    "fps": 4,
+    "max_tokens": 7,
+    "target_resolution": "250x250",
+    "gpu": "NVIDIA GeForce RTX 5090",
+    "compute_capability": "12.0"
+  },
+  "summary": {
+    "total_videos": 13,
+    "anomalies": 0,
+    "normals": 13,
+    "unknowns": 0,
+    "errors": 0,
+    "total_load_time_s": 9.685,
+    "total_inference_time_s": 6.113,
+    "avg_inference_time_s": 0.47,
+    "model_load_time_s": 55.9
+  },
+  "results": [
+    {
+      "file": "temp_display.mp4",
+      "result": "Normal",
+      "raw_output": "Classification: Normal",
+      "load_time_s": 1.17,
+      "inference_time_s": 0.858
+    },
+    {
+      "file": "vid_110.mp4",
+      "result": "Normal",
+      "raw_output": "Classification: Normal\n addCriterion",
+      "load_time_s": 0.731,
+      "inference_time_s": 0.471
+    },
+    {
+      "file": "vid_130.mp4",
+      "result": "Normal",
+      "raw_output": "Classification: Normal",
+      "load_time_s": 0.705,
+      "inference_time_s": 0.431
+    },
+    {
+      "file": "vid_150.mp4",
+      "result": "Normal",
+      "raw_output": "Classification: Normal",
+      "load_time_s": 0.669,
+      "inference_time_s": 0.424
+    },
+    {
+      "file": "vid_170.mp4",
+      "result": "Normal",
+      "raw_output": "Classification: Normal",
+      "load_time_s": 0.707,
+      "inference_time_s": 0.43
+    },
+    {
+      "file": "vid_190.mp4",
+      "result": "Normal",
+      "raw_output": "Classification: Normal\n addCriterion",
+      "load_time_s": 0.692,
+      "inference_time_s": 0.477
+    },
+    {
+      "file": "vid_210.mp4",
+      "result": "Normal",
+      "raw_output": "Classification: Normal",
+      "load_time_s": 0.676,
+      "inference_time_s": 0.444
+    },
+    {
+      "file": "vid_230.mp4",
+      "result": "Normal",
+      "raw_output": "Classification: Normal\n addCriterion",
+      "load_time_s": 0.743,
+      "inference_time_s": 0.459
+    },
+    {
+      "file": "vid_250.mp4",
+      "result": "Normal",
+      "raw_output": "Classification: Normal\n addCriterion",
+      "load_time_s": 0.76,
+      "inference_time_s": 0.321
+    },
+    {
+      "file": "vid_30.mp4",
+      "result": "Normal",
+      "raw_output": "Classification: Normal\nGuidId",
+      "load_time_s": 0.713,
+      "inference_time_s": 0.482
+    },
+    {
+      "file": "vid_50.mp4",
+      "result": "Normal",
+      "raw_output": "Classification: Normal",
+      "load_time_s": 0.741,
+      "inference_time_s": 0.466
+    },
+    {
+      "file": "vid_70.mp4",
+      "result": "Normal",
+      "raw_output": "Classification: Normal\n addCriterion",
+      "load_time_s": 0.686,
+      "inference_time_s": 0.428
+    },
+    {
+      "file": "vid_90.mp4",
+      "result": "Normal",
+      "raw_output": "Classification: Normal\n addCriterion",
+      "load_time_s": 0.692,
+      "inference_time_s": 0.422
+    }
+  ]
+}

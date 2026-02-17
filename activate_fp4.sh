@@ -3,16 +3,19 @@
 # FP4 Environment Activation Script
 # =============================================================================
 #
-# Source this file to set up the environment for FP4 quantization on Blackwell
+# Source this file to set up the runtime environment for FP4 inference on
+# Blackwell GPUs inside vast.ai Docker containers.
 #
 # Usage:
 #   source activate_fp4.sh           # Quick activation (no verification)
 #   source activate_fp4.sh --verify  # Activate with package verification
 #
-# This script:
-#   1. Adds CUDA 13 libraries to LD_LIBRARY_PATH (required for TensorRT-LLM)
-#   2. Activates virtual environment if present
-#   3. Optionally verifies the environment (--verify flag)
+# This script configures three things:
+#   1. OpenMPI override (LD_PRELOAD + PATH) -- fixes MPI_Init hang in Docker
+#   2. NVIDIA library paths (LD_LIBRARY_PATH) -- for TensorRT-LLM + CUDA 13
+#   3. Virtual environment activation (if one exists)
+#
+# Run setup_fp4_vast.sh first to install all dependencies and build OpenMPI.
 #
 # =============================================================================
 
@@ -33,35 +36,80 @@ for arg in "$@"; do
 done
 
 # =============================================================================
-# Find and set CUDA 13 library path
+# 1. Fix MPI for Docker/vast.ai containers
 # =============================================================================
+# OpenMPI 4.1.6 shipped with Ubuntu 24.04 has a PMIx version mismatch
+# (ext3x module vs PMIx 5.0.1) that causes MPI_Init to hang when orted
+# can't initialize a PMIx server inside Docker containers.
+#
+# The fix (applied by setup_fp4_vast.sh / build_openmpi_docker.sh) is a
+# custom OpenMPI build with --with-pmix=internal. We override the system
+# OpenMPI by prepending our build to PATH/LD_LIBRARY_PATH and using
+# LD_PRELOAD to ensure our libmpi.so is loaded instead of the system one.
 
-# Try to find the CUDA 13 library path
-PYTHON_SITE_PACKAGES=$(python3 -c "import site; print(site.getsitepackages()[0])" 2>/dev/null)
-
-if [ -n "$PYTHON_SITE_PACKAGES" ]; then
-    CUDA13_LIB_PATH="$PYTHON_SITE_PACKAGES/nvidia/cu13/lib"
-    
-    if [ -d "$CUDA13_LIB_PATH" ]; then
-        export LD_LIBRARY_PATH="$CUDA13_LIB_PATH:${LD_LIBRARY_PATH}"
-        echo -e "${GREEN}[FP4]${NC} Added CUDA 13 libraries to LD_LIBRARY_PATH"
-    else
-        # Try alternate location
-        CUDA13_LIB_PATH="/usr/local/lib/python3.12/dist-packages/nvidia/cu13/lib"
-        if [ -d "$CUDA13_LIB_PATH" ]; then
-            export LD_LIBRARY_PATH="$CUDA13_LIB_PATH:${LD_LIBRARY_PATH}"
-            echo -e "${GREEN}[FP4]${NC} Added CUDA 13 libraries to LD_LIBRARY_PATH"
-        else
-            echo -e "${YELLOW}[FP4]${NC} Warning: CUDA 13 library path not found"
-            echo "       You may need to install nvidia-cublas>=13.0.0"
-        fi
-    fi
+CUSTOM_OMPI="/usr/local/openmpi-4.1.6"
+if [ -d "$CUSTOM_OMPI/lib" ]; then
+    export LD_LIBRARY_PATH="$CUSTOM_OMPI/lib:${LD_LIBRARY_PATH}"
+    export LD_PRELOAD="$CUSTOM_OMPI/lib/libmpi.so"
+    export PATH="$CUSTOM_OMPI/bin:$PATH"
+    # Disable vader (shared memory) single-copy mechanism which can cause
+    # issues in containerized environments without /dev/shm or with
+    # restricted permissions.
+    export OMPI_MCA_btl_vader_single_copy_mechanism=none
+    echo -e "${GREEN}[FP4]${NC} OpenMPI with internal PMIx loaded (Docker/vast.ai fix)"
 else
-    echo -e "${YELLOW}[FP4]${NC} Warning: Could not determine Python site-packages path"
+    echo -e "${YELLOW}[FP4]${NC} Custom OpenMPI not found at $CUSTOM_OMPI"
+    echo "       MPI may hang. Run: bash setup_fp4_vast.sh"
 fi
 
 # =============================================================================
-# Activate virtual environment if it exists
+# 2. NVIDIA Library Paths (CUDA 13, TensorRT, TensorRT-LLM)
+# =============================================================================
+# TensorRT-LLM's C++ bindings need these libraries on LD_LIBRARY_PATH:
+#   - CUDA 13 runtime (cublas, cudnn, nccl, etc.)
+#   - TensorRT runtime (libnvinfer.so.10)
+#   - TensorRT-LLM native libs
+
+PYTHON_SITE_PACKAGES=$(python3 -c "import site; print(site.getsitepackages()[0])" 2>/dev/null)
+if [ -z "$PYTHON_SITE_PACKAGES" ]; then
+    PYTHON_SITE_PACKAGES="/usr/local/lib/python3.12/dist-packages"
+fi
+
+NVIDIA_LIB_DIRS=(
+    "$PYTHON_SITE_PACKAGES/nvidia/cu13/lib"
+    "$PYTHON_SITE_PACKAGES/nvidia/cublas/lib"
+    "$PYTHON_SITE_PACKAGES/nvidia/cudnn/lib"
+    "$PYTHON_SITE_PACKAGES/nvidia/nccl/lib"
+    "$PYTHON_SITE_PACKAGES/nvidia/cuda_runtime/lib"
+    "$PYTHON_SITE_PACKAGES/nvidia/nvjitlink/lib"
+    "$PYTHON_SITE_PACKAGES/nvidia/cufft/lib"
+    "$PYTHON_SITE_PACKAGES/nvidia/cusparse/lib"
+    "$PYTHON_SITE_PACKAGES/nvidia/cusolver/lib"
+    "$PYTHON_SITE_PACKAGES/nvidia/cusparselt/lib"
+    "$PYTHON_SITE_PACKAGES/nvidia/cuda_cupti/lib"
+    "$PYTHON_SITE_PACKAGES/nvidia/cuda_nvrtc/lib"
+    "$PYTHON_SITE_PACKAGES/tensorrt_cu13_libs/lib"
+    "$PYTHON_SITE_PACKAGES/tensorrt_libs"
+    "$PYTHON_SITE_PACKAGES/tensorrt_llm/libs"
+)
+
+ADDED_PATHS=0
+for lib_dir in "${NVIDIA_LIB_DIRS[@]}"; do
+    if [ -d "$lib_dir" ]; then
+        export LD_LIBRARY_PATH="$lib_dir:${LD_LIBRARY_PATH}"
+        ADDED_PATHS=$((ADDED_PATHS + 1))
+    fi
+done
+
+if [ "$ADDED_PATHS" -gt 0 ]; then
+    echo -e "${GREEN}[FP4]${NC} Added $ADDED_PATHS NVIDIA library paths to LD_LIBRARY_PATH"
+else
+    echo -e "${YELLOW}[FP4]${NC} Warning: No NVIDIA library paths found"
+    echo "       Run: bash setup_fp4_vast.sh"
+fi
+
+# =============================================================================
+# 3. Virtual Environment (if present)
 # =============================================================================
 
 VENV_PATHS=(
@@ -79,47 +127,76 @@ for venv_path in "${VENV_PATHS[@]}"; do
 done
 
 # =============================================================================
-# Verify environment (optional, use --verify flag)
+# 4. Verification (optional: --verify flag)
 # =============================================================================
 
 if $VERIFY_ENV; then
     echo ""
-    echo "FP4 Environment Status (verifying packages...):"
-    
-    # Check TensorRT-LLM
-    TRTLLM_VERSION=$(python3 -c "import tensorrt_llm; print(tensorrt_llm.__version__)" 2>/dev/null)
+    echo "FP4 Environment Verification:"
+
+    # TensorRT-LLM (suppress its own version banner during import)
+    TRTLLM_VERSION=$(python3 -c "import tensorrt_llm; print(tensorrt_llm.__version__)" 2>&1 | grep -v "TensorRT LLM version" | tail -1)
     if [ -n "$TRTLLM_VERSION" ]; then
-        echo "  ✓ TensorRT-LLM: $TRTLLM_VERSION"
+        echo "  [OK] TensorRT-LLM: $TRTLLM_VERSION"
     else
-        echo "  ✗ TensorRT-LLM: Not available (check LD_LIBRARY_PATH)"
+        echo "  [!!] TensorRT-LLM: Not available (check LD_LIBRARY_PATH)"
     fi
-    
-    # Check ModelOpt
+
+    # Flash Attention
+    FA_VERSION=$(python3 -c "import flash_attn; print(flash_attn.__version__)" 2>/dev/null)
+    if [ -n "$FA_VERSION" ]; then
+        echo "  [OK] flash-attn: $FA_VERSION"
+    else
+        echo "  [!!] flash-attn: Not installed (run: pip install flash-attn --no-build-isolation)"
+    fi
+
+    # ModelOpt
     MODELOPT_VERSION=$(python3 -c "import modelopt; print(modelopt.__version__)" 2>/dev/null)
     if [ -n "$MODELOPT_VERSION" ]; then
-        echo "  ✓ ModelOpt: $MODELOPT_VERSION"
+        echo "  [OK] ModelOpt: $MODELOPT_VERSION"
     else
-        echo "  ✗ ModelOpt: Not available"
+        echo "  [!!] ModelOpt: Not available"
     fi
-    
-    # Check PyTorch and CUDA
+
+    # TRT-LLM Patches
+    python3 -c "
+from tensorrt_llm.functional import RotaryScalingType, PositionEmbeddingType
+try:
+    RotaryScalingType.from_string('default')
+    PositionEmbeddingType.from_string('default')
+    print('  [OK] TRT-LLM patches: Applied (rope_type default handled)')
+except ValueError:
+    print('  [!!] TRT-LLM patches: NOT applied (run setup_fp4_vast.sh)')
+" 2>&1 | grep -v "TensorRT LLM version" || echo "  [!!] TRT-LLM patches: Could not verify"
+
+    # PyTorch + CUDA + GPU
     python3 -c "
 import torch
 if torch.cuda.is_available():
     gpu_name = torch.cuda.get_device_name(0)
     compute_cap = torch.cuda.get_device_capability(0)
-    print(f'  ✓ PyTorch: {torch.__version__}')
-    print(f'  ✓ CUDA GPU: {gpu_name}')
-    print(f'  ✓ Compute Capability: {compute_cap[0]}.{compute_cap[1]}')
+    print(f'  [OK] PyTorch: {torch.__version__}')
+    print(f'  [OK] CUDA GPU: {gpu_name}')
+    print(f'  [OK] Compute Capability: {compute_cap[0]}.{compute_cap[1]}')
     if compute_cap[0] >= 10:
-        print('  ✓ Blackwell FP4 Tensor Cores: Available')
+        print('  [OK] Blackwell FP4 Tensor Cores: Available')
     else:
-        print('  ⚠ Blackwell FP4 Tensor Cores: Not available (SM 10.0+ required)')
+        print('  [!!] Blackwell FP4 Tensor Cores: Not available (SM 10.0+ required)')
 else:
-    print('  ✗ CUDA: Not available')
-" 2>/dev/null || echo "  ✗ PyTorch/CUDA: Check failed"
+    print('  [!!] CUDA: Not available')
+" 2>/dev/null || echo "  [!!] PyTorch/CUDA: Check failed"
+
+    # HuggingFace login
+    python3 -c "
+from huggingface_hub import HfApi
+try:
+    user = HfApi().whoami()
+    print(f'  [OK] HuggingFace: logged in as {user[\"name\"]}')
+except:
+    print('  [!!] HuggingFace: Not logged in (run: huggingface-cli login)')
+" 2>/dev/null || echo "  [!!] HuggingFace: Check failed"
 fi
 
 echo ""
-echo -e "${GREEN}[FP4]${NC} Environment activated. Ready for FP4 quantization."
+echo -e "${GREEN}[FP4]${NC} Environment activated. Ready for FP4 inference."
 echo "       Run 'source activate_fp4.sh --verify' to check all packages."

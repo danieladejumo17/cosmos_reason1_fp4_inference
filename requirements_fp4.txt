@@ -1,71 +1,70 @@
-# Requirements for FP4/INT8 Quantization and Inference on RTX 5090 (Blackwell)
-# 
-# This file contains all dependencies for running:
-#   - NVFP4 quantization with true FP4 compute (fp4_inference.py, fp4_quantization.py)
-#   - INT8 quantization via bitsandbytes (fp8_inference.py)
-# 
-# Optimized for NVIDIA Blackwell GPUs (RTX 5090, SM 10.0+)
+# Requirements for FP4 VLM Inference on RTX 5090 (Blackwell) via TensorRT-LLM
 #
-# Install with:
+# Target: nvidia/Qwen2.5-VL-7B-Instruct-NVFP4 running on TensorRT-LLM >= 1.1.0
+# GPU:    NVIDIA RTX 5090 (Blackwell, SM 10.0+ for native FP4 Tensor Cores)
+# Env:    vast.ai Docker instances
+#
+# Install:
 #   pip install -r requirements_fp4.txt --extra-index-url https://pypi.nvidia.com
 #
-# Or use the setup script:
-#   bash setup_fp4_env.sh
+# Note: TensorRT-LLM and its CUDA dependencies are assumed to be pre-installed
+#       in the Docker image. This file lists the additional packages needed.
 #
-# System dependencies (installed by setup script):
-#   - libopenmpi-dev openmpi-bin (MPI support)
+# Full setup (including OpenMPI fix, TRT-LLM patches, etc.):
+#   bash setup_fp4_vast.sh
 
 # =============================================================================
-# Core NVIDIA Packages for FP4 Tensor Core Acceleration
+# Core NVIDIA Packages
 # =============================================================================
 
 # TensorRT-LLM for optimized LLM inference with FP4 GEMM kernels
 tensorrt-llm>=1.1.0
 
-# TensorRT runtime (usually installed as dependency of tensorrt-llm)
+# TensorRT runtime (usually a dependency of tensorrt-llm)
 tensorrt>=10.13.0
 
-# NVIDIA ModelOpt for FP4 quantization with AWQ-Lite calibration
-# Note: This is installed as nvidia-modelopt but imports as 'modelopt'
+# NVIDIA ModelOpt for FP4 quantization (imports as 'modelopt')
 nvidia-modelopt>=0.37.0
 
-# CUDA 13 cuBLAS libraries (required for TensorRT-LLM bindings)
-# Install from NVIDIA PyPI: pip install nvidia-cublas>=13.0.0 --extra-index-url https://pypi.nvidia.com
+# CUDA 13 cuBLAS libraries (required by TensorRT-LLM C++ bindings)
 nvidia-cublas>=13.0.0
 
 # =============================================================================
-# PyTorch with CUDA Support
+# PyTorch
 # =============================================================================
 
 torch>=2.9.0
 
 # =============================================================================
+# Flash Attention (required by Qwen2.5-VL vision encoder in TRT-LLM)
+# =============================================================================
+
+# TRT-LLM sets _attn_implementation='flash_attention_2' for the vision
+# transformer. Without this, model loading fails with ImportError.
+# Installed separately (needs --no-build-isolation for compilation):
+#   pip install flash-attn --no-build-isolation
+flash-attn>=2.8.0
+
+# =============================================================================
 # Transformers and Model Utilities
 # =============================================================================
 
-# HuggingFace Transformers for model loading
 transformers>=4.56.0
-
-# Accelerate for distributed inference and memory optimization
 accelerate>=1.7.0
-
-# Safe tensor serialization
 safetensors>=0.4.3
-
-# HuggingFace Hub for model downloads
 huggingface-hub>=0.23.0
 
 # =============================================================================
 # Vision-Language Model (VLM) Utilities
 # =============================================================================
 
-# Qwen-VL utilities for processing images/videos
+# Qwen-VL utilities for video/image frame extraction and preprocessing
 qwen-vl-utils>=0.0.14
 
-# OpenCV for image/video processing (headless version for servers)
+# OpenCV for video I/O (headless for server/Docker environments)
 opencv-python-headless>=4.8.0
 
-# AV for video decoding
+# AV for video decoding (used by qwen-vl-utils)
 av>=10.0.0
 
 # =============================================================================
@@ -73,29 +72,22 @@ av>=10.0.0
 # =============================================================================
 
 # bitsandbytes for INT8/INT4 quantization (used by fp8_inference.py)
-# Provides 8-bit and 4-bit quantization via LLM.int8() and QLoRA
 bitsandbytes>=0.45.0
 
 # =============================================================================
-# 3D Point Cloud and Visualization
+# 3D Point Cloud (STU Dataset)
 # =============================================================================
 
-# Open3D for point cloud processing and 3D visualization (used by stu_dataset)
+# Open3D for point cloud processing (used by stu_dataset experiments)
 open3d>=0.18.0
 
 # =============================================================================
-# Additional Dependencies
+# Other Dependencies
 # =============================================================================
 
-# NumPy (version <2 required for compatibility with TensorRT-LLM)
-# Note: open3d may try to install numpy>=2, but we need <2 for tensorrt-llm
+# NumPy <2 required for TensorRT-LLM compatibility
 numpy<2
 
-# Pydantic for configuration validation
 pydantic>=2.9.0
-
-# Rich for progress bars and formatted output
 rich>=13.0.0
-
-# Pillow for image processing
 pillow>=10.0.0

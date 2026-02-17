@@ -1,0 +1,115 @@
+{
+  "config": {
+    "engine_dir": "./cosmos-fp4-engine",
+    "inference_mode": "PyTorch+ModelOpt",
+    "fps": 4,
+    "max_tokens": 7,
+    "target_resolution": "250x250",
+    "quantization": "NVFP4 (Native Blackwell FP4)",
+    "compute_type": "FP4 Tensor Core GEMM",
+    "gpu": "NVIDIA GeForce RTX 5090",
+    "compute_capability": "12.0"
+  },
+  "summary": {
+    "total_videos": 13,
+    "anomalies": 2,
+    "normals": 11,
+    "unknowns": 0,
+    "errors": 0,
+    "total_load_time_s": 9.896,
+    "total_inference_time_s": 17.92
+  },
+  "results": [
+    {
+      "file": "temp_display.mp4",
+      "result": "Normal",
+      "raw_output": "Normal",
+      "load_time_s": 1.167,
+      "inference_time_s": 1.12
+    },
+    {
+      "file": "vid_110.mp4",
+      "result": "Normal",
+      "raw_output": "Normal",
+      "load_time_s": 0.739,
+      "inference_time_s": 1.066
+    },
+    {
+      "file": "vid_130.mp4",
+      "result": "Normal",
+      "raw_output": "Classification: Normal",
+      "load_time_s": 0.745,
+      "inference_time_s": 1.425
+    },
+    {
+      "file": "vid_150.mp4",
+      "result": "Normal",
+      "raw_output": "Classification: Normal",
+      "load_time_s": 0.677,
+      "inference_time_s": 1.416
+    },
+    {
+      "file": "vid_170.mp4",
+      "result": "Normal",
+      "raw_output": "Classification: Normal",
+      "load_time_s": 0.608,
+      "inference_time_s": 1.447
+    },
+    {
+      "file": "vid_190.mp4",
+      "result": "Normal",
+      "raw_output": "Classification: Normal",
+      "load_time_s": 0.745,
+      "inference_time_s": 1.42
+    },
+    {
+      "file": "vid_210.mp4",
+      "result": "Normal",
+      "raw_output": "Classification: Normal",
+      "load_time_s": 0.693,
+      "inference_time_s": 1.453
+    },
+    {
+      "file": "vid_230.mp4",
+      "result": "Normal",
+      "raw_output": "Classification: Normal",
+      "load_time_s": 0.73,
+      "inference_time_s": 1.426
+    },
+    {
+      "file": "vid_250.mp4",
+      "result": "Normal",
+      "raw_output": "Normal",
+      "load_time_s": 0.699,
+      "inference_time_s": 0.898
+    },
+    {
+      "file": "vid_30.mp4",
+      "result": "Anomaly",
+      "raw_output": "Classification: Anomaly\n\nThe woman",
+      "load_time_s": 0.795,
+      "inference_time_s": 2.005
+    },
+    {
+      "file": "vid_50.mp4",
+      "result": "Normal",
+      "raw_output": "Normal",
+      "load_time_s": 0.746,
+      "inference_time_s": 1.087
+    },
+    {
+      "file": "vid_70.mp4",
+      "result": "Normal",
+      "raw_output": "Normal",
+      "load_time_s": 0.738,
+      "inference_time_s": 1.117
+    },
+    {
+      "file": "vid_90.mp4",
+      "result": "Anomaly",
+      "raw_output": "Classification: Anomaly\n\nThe bird",
+      "load_time_s": 0.814,
+      "inference_time_s": 2.04
+    }
+  ]
+}

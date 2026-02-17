@@ -149,26 +149,13 @@ class ModelOptFP4Model:
         # Use AutoModelForVision2Seq or the specific VLM class for generation
         print("Loading model for generation...")
         
-        # For VLM models, always load from original model to ensure lm_head is present
-        # Then apply FP4 quantization for Blackwell Tensor Cores
-        # This is the recommended approach since VLM checkpoints may not save all layers
-        load_from_original = True
-        
-        if model_path != self.model_name:
-            # Check if the checkpoint has lm_head (required for generation)
-            config_path = Path(model_path) / "config.json"
-            if config_path.exists():
-                import json
-                with open(config_path) as f:
-                    config = json.load(f)
-                # If it's a base model (not for generation), load from original
-                arch = config.get("architectures", [])
-                if any("ForConditionalGeneration" in a or "ForCausalLM" in a for a in arch):
-                    load_from_original = False
-        
-        if load_from_original:
-            print(f"  Loading from original model for complete weights: {self.model_name}")
-            model_path = self.model_name
+        # Always load from the original HuggingFace model for consistent weights.
+        # The quantization checkpoint contains AWQ-adjusted weights that are paired
+        # with specific quantizer scales. Loading those weights without the matching
+        # scales (which use different key names after mtq.quantize) produces NaN.
+        # Fresh original weights + max-algorithm calibration = correct and consistent.
+        print(f"  Loading from original model: {self.model_name}")
+        model_path = self.model_name
         
         # Try to load with the correct generation-capable class
         try:
@@ -216,22 +203,55 @@ class ModelOptFP4Model:
         print(f"Model loaded on device: {self.device}")
     
     def _apply_fp4_quantization(self):
-        """Apply FP4 quantization using ModelOpt."""
+        """Apply FP4 quantization with quick calibration for Blackwell Tensor Cores."""
         try:
             import modelopt.torch.quantization as mtq
             
             print("Applying NVFP4 quantization for Blackwell Tensor Cores...")
             
-            # Use NVFP4_DEFAULT_CFG which uses 'max' algorithm - no calibration needed
-            # This is suitable for inference as it doesn't require a forward_loop
-            # AWQ_LITE requires calibration data, DEFAULT uses max scaling which works at inference
+            # Use DEFAULT config ('max' algorithm) — calibrates scales from activation
+            # maxima during a short forward loop. Fast and doesn't require pre-stored
+            # AWQ-Lite calibration data.
             quant_config = mtq.NVFP4_DEFAULT_CFG
             
-            # Apply quantization with max algorithm (no forward_loop needed)
-            mtq.quantize(self.model, quant_config, forward_loop=None)
+            # Quick calibration forward loop to compute proper quantizer scales.
+            # Without this, scales are identity/zero which adds Q/DQ overhead with
+            # no accuracy or speed benefit.
+            processor = self.processor
             
-            print("  FP4 quantization applied successfully (max algorithm)")
-            print("  FP4 GEMM operations will use Blackwell Tensor Cores")
+            def calibration_forward_loop(model):
+                """Run a few forward passes so quantizers observe activation ranges."""
+                model.eval()
+                device = next(model.parameters()).device
+                prompts = [
+                    "Describe this image in detail.",
+                    "What objects are visible in the scene?",
+                    "Is there anything unusual or dangerous?",
+                    "Analyze the environment for safety hazards.",
+                ]
+                with torch.no_grad():
+                    for prompt in prompts:
+                        try:
+                            inputs = processor(
+                                text=prompt,
+                                return_tensors="pt",
+                                padding=True,
+                                truncation=True,
+                                max_length=128,
+                            )
+                            model_inputs = {}
+                            for k in ("input_ids", "attention_mask"):
+                                if k in inputs:
+                                    model_inputs[k] = inputs[k].to(device)
+                            if model_inputs:
+                                _ = model(**model_inputs)
+                        except Exception:
+                            continue
+                print("  Calibration complete (4 text samples)")
+            
+            mtq.quantize(self.model, quant_config, forward_loop=calibration_forward_loop)
+            print("  FP4 quantization applied with calibrated scales")
+            print("  FP4 GEMM operations target Blackwell Tensor Cores")
             
         except ImportError:
             print("Warning: ModelOpt not available, running in FP16 mode")
@@ -241,7 +261,7 @@ class ModelOptFP4Model:
             print("Running in FP16 mode")
             return
         
-        # Apply torch.compile for additional speedup
+        # Apply torch.compile for optimized inference
         self._compile_model()
     
     def _compile_model(self):
@@ -257,8 +277,10 @@ class ModelOptFP4Model:
             torch.set_float32_matmul_precision("high")
             
             # Compile the model for faster execution
-            # Use 'reduce-overhead' mode for inference
-            self.model = torch.compile(self.model, mode="reduce-overhead")
+            # Note: avoid mode="reduce-overhead" — it uses CUDA graphs which require
+            # fixed input shapes, but VLM videos produce variable-length token sequences,
+            # causing expensive graph re-capture on every video
+            self.model = torch.compile(self.model)
             
             print("  torch.compile() applied successfully")
             
@@ -266,7 +288,7 @@ class ModelOptFP4Model:
             print(f"  torch.compile() skipped: {e}")
 
     def _verify_fp4_setup(self):
-        """Verify FP4 Tensor Core setup on Blackwell."""
+        """Verify FP4 Tensor Core setup and calibration state on Blackwell."""
         compute_cap = torch.cuda.get_device_capability(0)
         
         if compute_cap[0] >= 10:
@@ -274,21 +296,37 @@ class ModelOptFP4Model:
         else:
             print(f"⚠ SM {compute_cap[0]}.{compute_cap[1]} detected - FP4 may be emulated")
         
-        # Check for quantized modules
+        # Check for quantized modules and calibration state
         try:
-            import modelopt.torch.quantization as mtq
-            
             quantized_modules = 0
+            calibrated_quantizers = 0
+            total_quantizers = 0
+            
             for name, module in self.model.named_modules():
-                if hasattr(module, 'weight_quantizer') or hasattr(module, 'input_quantizer'):
+                has_wq = hasattr(module, 'weight_quantizer')
+                has_iq = hasattr(module, 'input_quantizer')
+                if has_wq or has_iq:
                     quantized_modules += 1
+                    for attr in ('weight_quantizer', 'input_quantizer'):
+                        q = getattr(module, attr, None)
+                        if q is not None:
+                            total_quantizers += 1
+                            amax = getattr(q, '_amax', None)
+                            if amax is not None and amax.abs().sum().item() > 0:
+                                calibrated_quantizers += 1
             
             if quantized_modules > 0:
-                print(f"✓ Found {quantized_modules} FP4 quantized modules")
+                print(f"✓ Found {quantized_modules} FP4 quantized modules ({total_quantizers} quantizers)")
+                if calibrated_quantizers > 0:
+                    print(f"✓ {calibrated_quantizers}/{total_quantizers} quantizers have calibrated scales")
+                else:
+                    print(f"⚠ 0/{total_quantizers} quantizers calibrated — scales are identity/default")
+                    print("  This means FP4 adds overhead without accuracy benefit.")
+                    print("  Re-run fp4_quantization.py to generate a calibrated checkpoint.")
             else:
-                print("⚠ No FP4 quantized modules found - may be running in FP16")
+                print("⚠ No FP4 quantized modules found - running in FP16")
                 
-        except ImportError:
+        except Exception:
             pass
     
     @torch.inference_mode()

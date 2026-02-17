@@ -1,0 +1,117 @@
+{
+  "config": {
+    "model": "nvidia/Cosmos-Reason1-7B",
+    "inference_mode": "bitsandbytes INT8",
+    "fps": 4,
+    "max_tokens": 7,
+    "target_resolution": "250x250",
+    "quantization": "INT8 (bitsandbytes load_in_8bit)",
+    "compute_type": "INT8 matrix multiplication",
+    "gpu": "NVIDIA GeForce RTX 5090",
+    "compute_capability": "12.0"
+  },
+  "summary": {
+    "total_videos": 13,
+    "anomalies": 3,
+    "normals": 10,
+    "unknowns": 0,
+    "errors": 0,
+    "total_load_time_s": 9.816,
+    "total_inference_time_s": 13.188,
+    "total_time_s": 23.005,
+    "avg_inference_time_s": 1.014
+  },
+  "results": [
+    {
+      "file": "temp_display.mp4",
+      "result": "Normal",
+      "raw_output": "Classification: Normal\n\nThe scene depicts",
+      "load_time_s": 1.165,
+      "inference_time_s": 1.371
+    },
+    {
+      "file": "vid_110.mp4",
+      "result": "Anomaly",
+      "raw_output": "Classification: Anomaly\n\nThe kick",
+      "load_time_s": 0.77,
+      "inference_time_s": 1.226
+    },
+    {
+      "file": "vid_130.mp4",
+      "result": "Normal",
+      "raw_output": "Classification: Normal",
+      "load_time_s": 0.717,
+      "inference_time_s": 0.9
+    },
+    {
+      "file": "vid_150.mp4",
+      "result": "Normal",
+      "raw_output": "Classification: Normal",
+      "load_time_s": 0.683,
+      "inference_time_s": 0.891
+    },
+    {
+      "file": "vid_170.mp4",
+      "result": "Normal",
+      "raw_output": "Classification: Normal",
+      "load_time_s": 0.622,
+      "inference_time_s": 0.901
+    },
+    {
+      "file": "vid_190.mp4",
+      "result": "Normal",
+      "raw_output": "Classification: Normal",
+      "load_time_s": 0.707,
+      "inference_time_s": 0.988
+    },
+    {
+      "file": "vid_210.mp4",
+      "result": "Normal",
+      "raw_output": "Classification: Normal",
+      "load_time_s": 0.808,
+      "inference_time_s": 0.904
+    },
+    {
+      "file": "vid_230.mp4",
+      "result": "Normal",
+      "raw_output": "Classification: Normal",
+      "load_time_s": 0.755,
+      "inference_time_s": 0.909
+    },
+    {
+      "file": "vid_250.mp4",
+      "result": "Normal",
+      "raw_output": "Classification: Normal",
+      "load_time_s": 0.686,
+      "inference_time_s": 0.78
+    },
+    {
+      "file": "vid_30.mp4",
+      "result": "Normal",
+      "raw_output": "Classification: Normal",
+      "load_time_s": 0.666,
+      "inference_time_s": 0.925
+    },
+    {
+      "file": "vid_50.mp4",
+      "result": "Normal",
+      "raw_output": "Classification: Normal",
+      "load_time_s": 0.773,
+      "inference_time_s": 0.906
+    },
+    {
+      "file": "vid_70.mp4",
+      "result": "Anomaly",
+      "raw_output": "Classification: Anomaly\n\nThe dog",
+      "load_time_s": 0.714,
+      "inference_time_s": 1.243
+    },
+    {
+      "file": "vid_90.mp4",
+      "result": "Anomaly",
+      "raw_output": "Classification: Anomaly\n\nThe bicycle",
+      "load_time_s": 0.748,
+      "inference_time_s": 1.244
+    }
+  ]
+}

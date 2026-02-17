@@ -130,7 +130,7 @@ def convert_with_python_api(model_name: str, checkpoint_dir: Path, tp_size: int 
     """
     try:
         import torch
-        from transformers import AutoProcessor, AutoConfig, AutoModel
+        from transformers import AutoProcessor, AutoConfig, Qwen2_5_VLForConditionalGeneration
         import modelopt.torch.quantization as mtq
     except ImportError as e:
         raise ImportError(
@@ -146,12 +146,11 @@ def convert_with_python_api(model_name: str, checkpoint_dir: Path, tp_size: int 
     model_type = getattr(config, 'model_type', 'unknown')
     print(f"Model type: {model_type}")
     
-    # Load the model - use AutoModel with trust_remote_code for VLM models
+    # Load with the generation-capable class so the saved checkpoint includes
+    # lm_head and can be loaded directly for inference without re-downloading
     print("Loading model weights (this may take a while)...")
     
-    # For VLM models like Qwen2.5-VL, use AutoModel with trust_remote_code
-    # This allows the model's native class to be loaded correctly
-    model = AutoModel.from_pretrained(
+    model = Qwen2_5_VLForConditionalGeneration.from_pretrained(
         model_name,
         torch_dtype=torch.float16,
         device_map="auto",
