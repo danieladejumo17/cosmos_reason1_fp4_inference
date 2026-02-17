@@ -7,13 +7,17 @@
 # Handles all dependencies, fixes, and patches needed to run NVFP4 VLM
 # inference on RTX 5090 (Blackwell) inside Docker.
 #
+# Supports:
+#   - nvidia/Cosmos-Reason1-7B (quantized to NVFP4 via quantize_cosmos_fp4.py)
+#   - nvidia/Qwen2.5-VL-7B-Instruct-NVFP4 (pre-quantized by NVIDIA)
+#
 # What this script does:
 #   1. Installs system build dependencies (gcc, wget, etc.)
 #   2. Builds OpenMPI 4.1.6 from source with internal PMIx
 #      (fixes MPI_Init hang in Docker/vast.ai containers)
 #   3. Installs flash-attn (required by Qwen2.5-VL vision encoder in TRT-LLM)
 #   4. Patches TensorRT-LLM to handle HuggingFace rope_type "default"
-#      (fixes Qwen2.5-VL-NVFP4 model loading in TRT-LLM v1.1.0)
+#      (fixes Qwen2.5-VL/Cosmos-Reason1 model loading in TRT-LLM v1.1.0)
 #   5. Logs in to HuggingFace (for gated NVIDIA model access)
 #   6. Verifies the full stack works end-to-end
 #
@@ -32,7 +36,10 @@
 #
 # After setup, activate the environment before running inference:
 #   source activate_fp4.sh
-#   python3 trtllm_fp4_inference.py --video_dir stu_dataset/stu_videos
+#   python3 quantize_cosmos_fp4.py                                            # Quantize (once)
+#   python3 cosmos_fp4_inference.py --video_dir stu_dataset/stu_videos        # Cosmos FP4
+#   python3 trtllm_fp4_inference.py --video_dir stu_dataset/stu_videos        # Qwen FP4
+#   python3 fp8_inference.py --video_dir stu_dataset/stu_videos               # INT8 comparison
 #
 # =============================================================================
 
@@ -390,9 +397,9 @@ info "TensorRT-LLM patches applied"
 # =============================================================================
 step "Step 5/5: HuggingFace authentication"
 
-# The nvidia/Qwen2.5-VL-7B-Instruct-NVFP4 model is gated on HuggingFace.
-# You must:
-#   1. Accept the license at https://huggingface.co/nvidia/Qwen2.5-VL-7B-Instruct-NVFP4
+# The NVIDIA models are gated on HuggingFace. You must:
+#   1. Accept the license at https://huggingface.co/nvidia/Cosmos-Reason1-7B
+#      (and/or https://huggingface.co/nvidia/Qwen2.5-VL-7B-Instruct-NVFP4)
 #   2. Provide a HuggingFace token with at least "Read" permission
 
 if [ "$SKIP_HF_LOGIN" = true ]; then
@@ -419,7 +426,8 @@ else
         warn "  bash setup_fp4_vast.sh --hf-token <YOUR_TOKEN>"
         warn ""
         warn "Get a token at: https://huggingface.co/settings/tokens"
-        warn "Accept license at: https://huggingface.co/nvidia/Qwen2.5-VL-7B-Instruct-NVFP4"
+        warn "Accept license at: https://huggingface.co/nvidia/Cosmos-Reason1-7B"
+        warn "                    https://huggingface.co/nvidia/Qwen2.5-VL-7B-Instruct-NVFP4"
     fi
 fi
 
@@ -463,7 +471,10 @@ print('All checks passed. Environment is ready for FP4 inference.')
 print()
 print('Next steps:')
 print('  source activate_fp4.sh')
-print('  python3 trtllm_fp4_inference.py --video_dir stu_dataset/stu_videos')
+print('  python3 quantize_cosmos_fp4.py                                         # Quantize Cosmos (once)')
+print('  python3 cosmos_fp4_inference.py --video_dir stu_dataset/stu_videos     # Cosmos FP4')
+print('  python3 trtllm_fp4_inference.py --video_dir stu_dataset/stu_videos     # Qwen FP4')
+print('  python3 fp8_inference.py --video_dir stu_dataset/stu_videos            # INT8 comparison')
 " 2>&1
 fi
 
@@ -481,16 +492,27 @@ Fixes applied:
   2. flash-attn installed
      (required by Qwen2.5-VL vision encoder)
   3. TensorRT-LLM patched: RotaryScalingType + PositionEmbeddingType
-     (fixes 'default' rope_type in Qwen2.5-VL NVFP4 config)
+     (fixes 'default' rope_type in Qwen2.5-VL/Cosmos NVFP4 config)
 
-Usage:
+Usage (Cosmos-Reason1-7B FP4 -- recommended):
+  ${GREEN}source activate_fp4.sh${NC}
+  ${GREEN}python3 quantize_cosmos_fp4.py${NC}                                         # Quantize (once, ~2 min)
+  ${GREEN}python3 cosmos_fp4_inference.py --video_dir stu_dataset/stu_videos${NC}     # FP4 inference
+
+Usage (Qwen2.5-VL FP4 -- pre-quantized):
   ${GREEN}source activate_fp4.sh${NC}
   ${GREEN}python3 trtllm_fp4_inference.py --video_dir stu_dataset/stu_videos${NC}
+
+Usage (INT8 comparison):
+  ${GREEN}source activate_fp4.sh${NC}
+  ${GREEN}python3 fp8_inference.py --video_dir stu_dataset/stu_videos${NC}
 
 Files:
   setup_fp4_vast.sh           ← This setup script (run once)
   activate_fp4.sh             ← Environment activation (source before each session)
-  build_openmpi_docker.sh     ← Standalone OpenMPI build (called by setup)
+  quantize_cosmos_fp4.py      ← Quantize Cosmos-Reason1-7B to NVFP4 (run once)
+  cosmos_fp4_inference.py     ← Cosmos FP4 inference (recommended)
+  trtllm_fp4_inference.py     ← Qwen FP4 inference
+  fp8_inference.py            ← INT8 inference (bitsandbytes)
   requirements_fp4.txt        ← Python package requirements
-  trtllm_fp4_inference.py     ← FP4 VLM inference script
 "
