@@ -8,20 +8,20 @@ Accelerated video anomaly detection using **NVIDIA TensorRT-LLM** with **native 
 # One-time setup (vast.ai Docker instance with TensorRT-LLM)
 bash setup_fp4_vast.sh --hf-token hf_YOUR_TOKEN_HERE
 
-# Download STU dataset
+# Download STU dataset and setup venv for STU dataset
 bash setup_stu_dataset.sh
 
 # Activate environment
 source activate_fp4.sh
 
 # Quantize Cosmos-Reason1-7B to NVFP4 (once, ~2 minutes)
-python3 quantize_cosmos_fp4.py
+python3 quantize_cosmos_fp4.py --output_dir ./cosmos-reason1-nvfp4
 
 # Run FP4 inference
-python3 cosmos_fp4_inference.py --video_dir stu_dataset/stu_videos --output_file cosmos_fp4_results.json
+python3 cosmos_fp4_inference.py --video_dir stu_dataset/stu_videos --output_file stu_dataset/cosmos_fp4_results.json
 
 # Run INT8 inference (for comparison)
-python3 fp8_inference.py --video_dir stu_dataset/stu_videos --output_json cosmos_int8_results.json
+python3 fp8_inference.py --video_dir stu_dataset/stu_videos --output_json stu_dataset/cosmos_int8_results.json
 ```
 
 ## Overview

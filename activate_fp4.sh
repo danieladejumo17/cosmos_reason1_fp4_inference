@@ -63,6 +63,11 @@ else
 fi
 
 # =============================================================================
+# 1b. Force torchvision for video reading (avoid torchcodec/FFmpeg errors)
+# =============================================================================
+export FORCE_QWENVL_VIDEO_READER=torchvision
+
+# =============================================================================
 # 2. NVIDIA Library Paths (CUDA 13, TensorRT, TensorRT-LLM)
 # =============================================================================
 # TensorRT-LLM's C++ bindings need these libraries on LD_LIBRARY_PATH:
@@ -113,6 +118,7 @@ fi
 # =============================================================================
 
 VENV_PATHS=(
+    "/venv/main/bin/activate"
     "$SCRIPT_DIR/fp4_env/bin/activate"
     "$SCRIPT_DIR/venv/bin/activate"
     "$SCRIPT_DIR/.venv/bin/activate"

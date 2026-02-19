@@ -268,18 +268,21 @@ if [ "$NEED_TORCH" = true ] && [ "$NEED_TRTLLM" = true ]; then
     info "This may take several minutes on first install..."
     pip install --upgrade pip 2>&1 | tail -1 || true
     pip install "tensorrt-llm>=1.1.0" \
+        --no-build-isolation \
         --extra-index-url https://pypi.nvidia.com \
         2>&1 | tail -5
     info "TensorRT-LLM installed"
 elif [ "$NEED_TRTLLM" = true ]; then
     info "Installing TensorRT-LLM..."
     pip install "tensorrt-llm>=1.1.0" \
+        --no-build-isolation \
         --extra-index-url https://pypi.nvidia.com \
         2>&1 | tail -5
     info "TensorRT-LLM installed"
 elif [ "$NEED_TORCH" = true ]; then
     info "Installing PyTorch with CUDA support..."
     pip install "torch>=2.9.0" \
+        --no-build-isolation \
         --extra-index-url https://download.pytorch.org/whl/cu128 \
         2>&1 | tail -5
     info "PyTorch installed"
@@ -289,6 +292,7 @@ fi
 if [ -f "$SCRIPT_DIR/requirements_fp4.txt" ]; then
     info "Installing Python dependencies from requirements_fp4.txt..."
     pip install -r "$SCRIPT_DIR/requirements_fp4.txt" \
+        --no-build-isolation \
         --extra-index-url https://pypi.nvidia.com \
         2>&1 | tail -5
     info "Python dependencies installed"
