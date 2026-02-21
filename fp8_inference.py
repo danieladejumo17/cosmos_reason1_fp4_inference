@@ -13,6 +13,9 @@ import cv2
 
 warnings.filterwarnings("ignore", category=UserWarning)
 
+import os
+os.environ['FORCE_QWENVL_VIDEO_READER'] = 'decord'
+
 # ============================================================
 # 1. Model Loader
 # ============================================================
