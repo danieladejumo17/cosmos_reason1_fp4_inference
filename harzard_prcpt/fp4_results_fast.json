@@ -1,0 +1,390 @@
+{
+  "config": {
+    "engine": "TensorRT-LLM",
+    "model": "nvidia/Cosmos-Reason1-7B",
+    "checkpoint": "/workspace/ms_proj/cosmos_reason1_fp4_inference/cosmos-reason1-nvfp4",
+    "quantization": "NVFP4",
+    "compute_type": "FP4 Tensor Core GEMM (Blackwell native)",
+    "fps": 4,
+    "max_tokens": 64,
+    "target_resolution": "250x250",
+    "gpu": "NVIDIA GeForce RTX 5090",
+    "compute_capability": "12.0"
+  },
+  "summary": {
+    "total_videos": 44,
+    "anomalies": 15,
+    "normals": 29,
+    "unknowns": 0,
+    "errors": 0,
+    "total_load_time_s": 30.342,
+    "total_inference_time_s": 26.616,
+    "avg_inference_time_s": 0.605,
+    "model_load_time_s": 47.2
+  },
+  "metrics": {
+    "TP": 4,
+    "TN": 20,
+    "FP": 11,
+    "FN": 9,
+    "Accuracy": 0.5454545454545454,
+    "Precision": 0.26666666666666666,
+    "Recall": 0.3076923076923077,
+    "F1-Score": 0.28571428571428575,
+    "Avg Inference Time": 0.6049165563149885
+  },
+  "results": [
+    {
+      "file": "Anom_1_400_525.mp4",
+      "result": "Normal",
+      "raw_output": "Normal",
+      "true_label": "Anomaly",
+      "load_time_s": 0.694,
+      "inference_time_s": 0.897
+    },
+    {
+      "file": "Anom_1_450_575.mp4",
+      "result": "Normal",
+      "raw_output": "Normal",
+      "true_label": "Anomaly",
+      "load_time_s": 0.681,
+      "inference_time_s": 0.462
+    },
+    {
+      "file": "Anom_1_500_625.mp4",
+      "result": "Normal",
+      "raw_output": "Classification: Normal",
+      "true_label": "Anomaly",
+      "load_time_s": 0.63,
+      "inference_time_s": 0.458
+    },
+    {
+      "file": "Anom_1_550_675.mp4",
+      "result": "Normal",
+      "raw_output": "Normal",
+      "true_label": "Anomaly",
+      "load_time_s": 0.653,
+      "inference_time_s": 0.437
+    },
+    {
+      "file": "Anom_2_1000_1125.mp4",
+      "result": "Normal",
+      "raw_output": "Normal",
+      "true_label": "Anomaly",
+      "load_time_s": 0.661,
+      "inference_time_s": 0.472
+    },
+    {
+      "file": "Anom_2_1050_1175.mp4",
+      "result": "Anomaly",
+      "raw_output": "Classification: Anomaly\nThe video shows a car's side mirror with a noticeable distortion effect. This distortion is likely due to a camera lens issue or a digital artifact affecting the video quality. The car itself appears stationary, and there are no visible signs of movement or interaction with other objects. The background includes a road and",
+      "true_label": "Anomaly",
+      "load_time_s": 0.634,
+      "inference_time_s": 0.864
+    },
+    {
+      "file": "Anom_2_1100_1225.mp4",
+      "result": "Anomaly",
+      "raw_output": "Classification: Anomaly\n\nThe video contains an image of a white rectangular object with black and green markings, which is being used as a placeholder for a car. This is not a real-world scene but rather a digitally manipulated or placeholder image, making it unsuitable for evaluating the driving experience or detecting anomalies in a real-world",
+      "true_label": "Anomaly",
+      "load_time_s": 0.672,
+      "inference_time_s": 0.86
+    },
+    {
+      "file": "Anom_2_1150_1275.mp4",
+      "result": "Normal",
+      "raw_output": "Normal",
+      "true_label": "Anomaly",
+      "load_time_s": 0.633,
+      "inference_time_s": 0.505
+    },
+    {
+      "file": "Anom_2_750_875.mp4",
+      "result": "Normal",
+      "raw_output": "Classification: Normal",
+      "true_label": "Anomaly",
+      "load_time_s": 1.214,
+      "inference_time_s": 0.53
+    },
+    {
+      "file": "Anom_2_800_925.mp4",
+      "result": "Normal",
+      "raw_output": "Normal",
+      "true_label": "Anomaly",
+      "load_time_s": 0.664,
+      "inference_time_s": 0.499
+    },
+    {
+      "file": "Anom_2_850_975.mp4",
+      "result": "Normal",
+      "raw_output": "Normal",
+      "true_label": "Anomaly",
+      "load_time_s": 0.644,
+      "inference_time_s": 0.481
+    },
+    {
+      "file": "Anom_2_900_1025.mp4",
+      "result": "Anomaly",
+      "raw_output": "Classification: Anomaly\n\nThe video shows a yellow and white striped object with a black and white pattern moving in a way that resembles a snake. This movement is unusual and could be considered an anomaly because it does not align with typical object behavior in a real-world setting. The motion appears unnatural, as if the object is",
+      "true_label": "Anomaly",
+      "load_time_s": 0.685,
+      "inference_time_s": 0.919
+    },
+    {
+      "file": "Anom_2_950_1075.mp4",
+      "result": "Anomaly",
+      "raw_output": "Classification: Anomaly\n\nThe video shows a yellow and black striped pole positioned upright, which appears to be part of a traffic barrier or signpost. It is stationary and seems to be securely attached to the ground. There are no visible signs of movement, damage, or instability in the pole itself. However, the background",
+      "true_label": "Anomaly",
+      "load_time_s": 0.646,
+      "inference_time_s": 0.867
+    },
+    {
+      "file": "Norm_1_0_125.mp4",
+      "result": "Normal",
+      "raw_output": "Classification: Normal",
+      "true_label": "Normal",
+      "load_time_s": 0.663,
+      "inference_time_s": 0.522
+    },
+    {
+      "file": "Norm_1_100_225.mp4",
+      "result": "Anomaly",
+      "raw_output": "Classification: Anomaly\n\nThe video contains anomalies such as a car's door opening and closing by itself, which is unusual and could pose a safety risk. Additionally, the car's movement appears jittery and inconsistent with typical driving behavior, suggesting potential issues with the vehicle's navigation or control systems.",
+      "true_label": "Normal",
+      "load_time_s": 0.61,
+      "inference_time_s": 0.86
+    },
+    {
+      "file": "Norm_1_150_275.mp4",
+      "result": "Normal",
+      "raw_output": "Normal",
+      "true_label": "Normal",
+      "load_time_s": 0.571,
+      "inference_time_s": 0.465
+    },
+    {
+      "file": "Norm_1_200_325.mp4",
+      "result": "Normal",
+      "raw_output": "Normal",
+      "true_label": "Normal",
+      "load_time_s": 0.633,
+      "inference_time_s": 0.485
+    },
+    {
+      "file": "Norm_1_250_375.mp4",
+      "result": "Normal",
+      "raw_output": "Normal",
+      "true_label": "Normal",
+      "load_time_s": 0.607,
+      "inference_time_s": 0.484
+    },
+    {
+      "file": "Norm_1_300_425.mp4",
+      "result": "Anomaly",
+      "raw_output": "Classification: Anomaly",
+      "true_label": "Normal",
+      "load_time_s": 1.009,
+      "inference_time_s": 0.503
+    },
+    {
+      "file": "Norm_1_350_475.mp4",
+      "result": "Anomaly",
+      "raw_output": "Classification: Anomaly\n\nThe video contains an image of a yellow and orange striped rectangular object with a black border, which is likely a digital artifact or glitch, as it appears disconnected from any real-world context and does not align with typical objects found in driving scenarios.",
+      "true_label": "Normal",
+      "load_time_s": 0.622,
+      "inference_time_s": 0.814
+    },
+    {
+      "file": "Norm_1_50_175.mp4",
+      "result": "Normal",
+      "raw_output": "Normal",
+      "true_label": "Normal",
+      "load_time_s": 0.59,
+      "inference_time_s": 0.456
+    },
+    {
+      "file": "Norm_1_600_725.mp4",
+      "result": "Normal",
+      "raw_output": "Normal",
+      "true_label": "Normal",
+      "load_time_s": 0.64,
+      "inference_time_s": 0.474
+    },
+    {
+      "file": "Norm_1_650_775.mp4",
+      "result": "Anomaly",
+      "raw_output": "Classification: Anomaly",
+      "true_label": "Normal",
+      "load_time_s": 0.609,
+      "inference_time_s": 0.502
+    },
+    {
+      "file": "Norm_1_700_825.mp4",
+      "result": "Anomaly",
+      "raw_output": "Classification: Anomaly",
+      "true_label": "Normal",
+      "load_time_s": 0.647,
+      "inference_time_s": 0.535
+    },
+    {
+      "file": "Norm_1_750_875.mp4",
+      "result": "Anomaly",
+      "raw_output": "Classification: Anomaly\n\nThe video contains an excessive amount of overlaid graphics and text, which are likely added for visual effects or watermarking purposes. These elements appear as bright, colorful shapes and patterns that intermittently cover large portions of the screen, including areas where a person's face would typically be visible. The graphics",
+      "true_label": "Normal",
+      "load_time_s": 0.622,
+      "inference_time_s": 0.952
+    },
+    {
+      "file": "Norm_1_800_925.mp4",
+      "result": "Normal",
+      "raw_output": "Normal",
+      "true_label": "Normal",
+      "load_time_s": 0.618,
+      "inference_time_s": 0.483
+    },
+    {
+      "file": "Norm_1_850_975.mp4",
+      "result": "Normal",
+      "raw_output": "Normal",
+      "true_label": "Normal",
+      "load_time_s": 0.73,
+      "inference_time_s": 0.505
+    },
+    {
+      "file": "Norm_2_0_125.mp4",
+      "result": "Normal",
+      "raw_output": "Normal",
+      "true_label": "Normal",
+      "load_time_s": 0.641,
+      "inference_time_s": 0.526
+    },
+    {
+      "file": "Norm_2_100_225.mp4",
+      "result": "Normal",
+      "raw_output": "Normal",
+      "true_label": "Normal",
+      "load_time_s": 1.035,
+      "inference_time_s": 0.48
+    },
+    {
+      "file": "Norm_2_1200_1325.mp4",
+      "result": "Normal",
+      "raw_output": "Classification: Normal",
+      "true_label": "Normal",
+      "load_time_s": 0.672,
+      "inference_time_s": 0.527
+    },
+    {
+      "file": "Norm_2_1250_1375.mp4",
+      "result": "Anomaly",
+      "raw_output": "Classification: Anomaly\n\nThe video contains an object with a visibly distorted and merged appearance, particularly noticeable in the center-right area. This distortion creates an unrealistic visual effect where elements appear to overlap unnaturally, breaking the expected continuity and smoothness of the scene. Such anomalies can disrupt visual perception and may indicate rendering issues or",
+      "true_label": "Normal",
+      "load_time_s": 0.646,
+      "inference_time_s": 0.851
+    },
+    {
+      "file": "Norm_2_150_275.mp4",
+      "result": "Anomaly",
+      "raw_output": "Classification: Anomaly\n\nThe video shows a black car with a silver front bumper driving on a road. The car is positioned slightly to the right of the center of the frame, heading towards the left side of the screen. As it moves, the car appears to be passing through a white signpost without any physical interaction",
+      "true_label": "Normal",
+      "load_time_s": 0.677,
+      "inference_time_s": 0.922
+    },
+    {
+      "file": "Norm_2_200_325.mp4",
+      "result": "Anomaly",
+      "raw_output": "Classification: Anomaly\n\nThe video contains anomalies such as a vehicle's movement appearing to be in reverse despite the visible direction indicating forward motion. Additionally, there is a noticeable glitch where the front and back sections of the car seem to swap positions unexpectedly.",
+      "true_label": "Normal",
+      "load_time_s": 0.639,
+      "inference_time_s": 0.8
+    },
+    {
+      "file": "Norm_2_250_375.mp4",
+      "result": "Normal",
+      "raw_output": "Normal",
+      "true_label": "Normal",
+      "load_time_s": 0.703,
+      "inference_time_s": 0.497
+    },
+    {
+      "file": "Norm_2_300_425.mp4",
+      "result": "Normal",
+      "raw_output": "Normal",
+      "true_label": "Normal",
+      "load_time_s": 0.637,
+      "inference_time_s": 0.509
+    },
+    {
+      "file": "Norm_2_350_475.mp4",
+      "result": "Normal",
+      "raw_output": "Normal",
+      "true_label": "Normal",
+      "load_time_s": 0.634,
+      "inference_time_s": 0.472
+    },
+    {
+      "file": "Norm_2_400_525.mp4",
+      "result": "Normal",
+      "raw_output": "Normal",
+      "true_label": "Normal",
+      "load_time_s": 0.676,
+      "inference_time_s": 0.499
+    },
+    {
+      "file": "Norm_2_450_575.mp4",
+      "result": "Normal",
+      "raw_output": "Normal",
+      "true_label": "Normal",
+      "load_time_s": 0.647,
+      "inference_time_s": 0.487
+    },
+    {
+      "file": "Norm_2_500_625.mp4",
+      "result": "Anomaly",
+      "raw_output": "Classification: Anomaly\n\nThe video contains an artificial and repetitive pattern on the road surface, which is inconsistent with real-world road designs. This visual anomaly could distract or confuse a vehicle's perception system, potentially impacting its ability to recognize actual road conditions. Additionally, the presence of a yellow flower in the center of the frame",
+      "true_label": "Normal",
+      "load_time_s": 1.018,
+      "inference_time_s": 0.883
+    },
+    {
+      "file": "Norm_2_50_175.mp4",
+      "result": "Normal",
+      "raw_output": "Classification: Normal",
+      "true_label": "Normal",
+      "load_time_s": 0.649,
+      "inference_time_s": 0.469
+    },
+    {
+      "file": "Norm_2_550_675.mp4",
+      "result": "Anomaly",
+      "raw_output": "Classification: Anomaly",
+      "true_label": "Normal",
+      "load_time_s": 0.671,
+      "inference_time_s": 0.519
+    },
+    {
+      "file": "Norm_2_600_725.mp4",
+      "result": "Normal",
+      "raw_output": "Normal",
+      "true_label": "Normal",
+      "load_time_s": 0.709,
+      "inference_time_s": 0.487
+    },
+    {
+      "file": "Norm_2_650_775.mp4",
+      "result": "Normal",
+      "raw_output": "Based on the video, there are no visible anomalies or irregularities that would impact safe autonomous vehicle operation. The scene appears to be a standard road setting with no unexpected obstacles, pedestrians, or unusual road conditions. The video shows a clear and unobstructed path ahead, with no signs of traffic rules being violated or",
+      "true_label": "Normal",
+      "load_time_s": 0.666,
+      "inference_time_s": 0.906
+    },
+    {
+      "file": "Norm_2_700_825.mp4",
+      "result": "Normal",
+      "raw_output": "Normal",
+      "true_label": "Normal",
+      "load_time_s": 0.742,
+      "inference_time_s": 0.489
+    }
+  ]
+}

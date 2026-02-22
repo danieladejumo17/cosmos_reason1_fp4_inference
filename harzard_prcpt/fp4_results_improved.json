@@ -1,0 +1,390 @@
+{
+  "config": {
+    "engine": "TensorRT-LLM",
+    "model": "nvidia/Cosmos-Reason1-7B",
+    "checkpoint": "/workspace/ms_proj/cosmos_reason1_fp4_inference/cosmos-reason1-nvfp4",
+    "quantization": "NVFP4",
+    "compute_type": "FP4 Tensor Core GEMM (Blackwell native)",
+    "fps": 8,
+    "max_tokens": 256,
+    "target_resolution": "500x500",
+    "gpu": "NVIDIA GeForce RTX 5090",
+    "compute_capability": "12.0"
+  },
+  "summary": {
+    "total_videos": 44,
+    "anomalies": 12,
+    "normals": 32,
+    "unknowns": 0,
+    "errors": 0,
+    "total_load_time_s": 33.302,
+    "total_inference_time_s": 60.079,
+    "avg_inference_time_s": 1.365,
+    "model_load_time_s": 47.2
+  },
+  "metrics": {
+    "TP": 3,
+    "TN": 22,
+    "FP": 9,
+    "FN": 10,
+    "Accuracy": 0.5681818181818182,
+    "Precision": 0.25,
+    "Recall": 0.23076923076923078,
+    "F1-Score": 0.24000000000000002,
+    "Avg Inference Time": 1.3654317476532676
+  },
+  "results": [
+    {
+      "file": "Anom_1_400_525.mp4",
+      "result": "Anomaly",
+      "raw_output": "Classification: Anomaly\n\nObstacles: The video shows a yellow rectangular object with black text appearing on the left side of the frame, which is unusual and could obstruct the view of the road. This object seems to be an unintended overlay rather than a part of the vehicle's interior or a road sign. Its sudden appearance and placement suggest it might be a visual artifact or glitch in the video.",
+      "true_label": "Anomaly",
+      "load_time_s": 0.753,
+      "inference_time_s": 2.092
+    },
+    {
+      "file": "Anom_1_450_575.mp4",
+      "result": "Normal",
+      "raw_output": "Classification: Normal",
+      "true_label": "Anomaly",
+      "load_time_s": 0.68,
+      "inference_time_s": 1.177
+    },
+    {
+      "file": "Anom_1_500_625.mp4",
+      "result": "Anomaly",
+      "raw_output": "Classification: Anomaly",
+      "true_label": "Anomaly",
+      "load_time_s": 0.689,
+      "inference_time_s": 1.134
+    },
+    {
+      "file": "Anom_1_550_675.mp4",
+      "result": "Anomaly",
+      "raw_output": "Classification: Anomaly\n\nThe video shows a static image of a business card featuring a yellow and black design with text and logos. There are no changes or movements observed within the scene. The business card remains consistently displayed throughout the video without any alterations, transitions, or interactions. There are no elements of the video suggesting anomalies or deviations from normal operation.\n</think>\n\n<answer>\nNormal\n</answer>",
+      "true_label": "Anomaly",
+      "load_time_s": 0.675,
+      "inference_time_s": 1.637
+    },
+    {
+      "file": "Anom_2_1000_1125.mp4",
+      "result": "Normal",
+      "raw_output": "Normal",
+      "true_label": "Anomaly",
+      "load_time_s": 0.776,
+      "inference_time_s": 1.089
+    },
+    {
+      "file": "Anom_2_1050_1175.mp4",
+      "result": "Normal",
+      "raw_output": "Normal",
+      "true_label": "Anomaly",
+      "load_time_s": 0.717,
+      "inference_time_s": 1.147
+    },
+    {
+      "file": "Anom_2_1100_1225.mp4",
+      "result": "Normal",
+      "raw_output": "Normal",
+      "true_label": "Anomaly",
+      "load_time_s": 0.736,
+      "inference_time_s": 1.15
+    },
+    {
+      "file": "Anom_2_1150_1275.mp4",
+      "result": "Normal",
+      "raw_output": "Normal",
+      "true_label": "Anomaly",
+      "load_time_s": 0.744,
+      "inference_time_s": 1.099
+    },
+    {
+      "file": "Anom_2_750_875.mp4",
+      "result": "Normal",
+      "raw_output": "Normal",
+      "true_label": "Anomaly",
+      "load_time_s": 1.327,
+      "inference_time_s": 1.167
+    },
+    {
+      "file": "Anom_2_800_925.mp4",
+      "result": "Normal",
+      "raw_output": "Classification: Normal",
+      "true_label": "Anomaly",
+      "load_time_s": 0.735,
+      "inference_time_s": 1.163
+    },
+    {
+      "file": "Anom_2_850_975.mp4",
+      "result": "Normal",
+      "raw_output": "Based on the provided information, the video does not contain any anomalies or unsafe conditions that would impact safe autonomous vehicle operation. The scene appears static and uneventful, with no visible obstacles, moving objects, or changes in traffic conditions. The background elements, such as the wall and the yellow banner, remain consistent throughout the frames, indicating a stable environment. There are no signs of unexpected movements, such as pedestrians crossing the road or vehicles approaching from the side. The lighting and overall visibility also seem consistent, suggesting a clear and controlled setting. Therefore, the video can be considered normal for the purpose of autonomous vehicle testing.\n</think>",
+      "true_label": "Anomaly",
+      "load_time_s": 0.734,
+      "inference_time_s": 1.962
+    },
+    {
+      "file": "Anom_2_900_1025.mp4",
+      "result": "Normal",
+      "raw_output": "Normal",
+      "true_label": "Anomaly",
+      "load_time_s": 0.738,
+      "inference_time_s": 1.142
+    },
+    {
+      "file": "Anom_2_950_1075.mp4",
+      "result": "Normal",
+      "raw_output": "Classification: Normal",
+      "true_label": "Anomaly",
+      "load_time_s": 0.757,
+      "inference_time_s": 1.17
+    },
+    {
+      "file": "Norm_1_0_125.mp4",
+      "result": "Normal",
+      "raw_output": "Based on the provided video, there are no visible anomalies or unusual events that would impact safe autonomous vehicle operation. The video shows a static scene with no moving objects, changing environments, or unexpected movements. The background remains consistent throughout the frames, and there are no indications of obstacles, pedestrians, or vehicles violating traffic rules. The lighting and visibility appear stable, and the road conditions seem normal. Therefore, the video appears to be typical and safe for autonomous vehicle navigation.\n</think>",
+      "true_label": "Normal",
+      "load_time_s": 0.666,
+      "inference_time_s": 1.752
+    },
+    {
+      "file": "Norm_1_100_225.mp4",
+      "result": "Normal",
+      "raw_output": "Normal",
+      "true_label": "Normal",
+      "load_time_s": 0.647,
+      "inference_time_s": 1.144
+    },
+    {
+      "file": "Norm_1_150_275.mp4",
+      "result": "Normal",
+      "raw_output": "Normal",
+      "true_label": "Normal",
+      "load_time_s": 0.697,
+      "inference_time_s": 1.103
+    },
+    {
+      "file": "Norm_1_200_325.mp4",
+      "result": "Normal",
+      "raw_output": "Based on the video, there are no anomalies or unusual events observed. The video shows a standard driving scenario where the car is following another vehicle on a road. All elements such as the road, vehicles, and traffic flow appear normal and consistent with typical driving conditions. The video does not exhibit any unexpected behaviors, objects, or movements that would suggest an anomaly. Therefore, the correct classification is \"Normal.\"\n</think>",
+      "true_label": "Normal",
+      "load_time_s": 0.696,
+      "inference_time_s": 1.648
+    },
+    {
+      "file": "Norm_1_250_375.mp4",
+      "result": "Normal",
+      "raw_output": "Normal",
+      "true_label": "Normal",
+      "load_time_s": 0.678,
+      "inference_time_s": 1.152
+    },
+    {
+      "file": "Norm_1_300_425.mp4",
+      "result": "Anomaly",
+      "raw_output": "Classification: Anomaly",
+      "true_label": "Normal",
+      "load_time_s": 1.146,
+      "inference_time_s": 1.173
+    },
+    {
+      "file": "Norm_1_350_475.mp4",
+      "result": "Normal",
+      "raw_output": "Normal",
+      "true_label": "Normal",
+      "load_time_s": 0.729,
+      "inference_time_s": 1.153
+    },
+    {
+      "file": "Norm_1_50_175.mp4",
+      "result": "Normal",
+      "raw_output": "Based on the video, there are no visible anomalies or unsafe conditions that would impact the safe operation of an autonomous vehicle. The video shows a typical driving scenario with no unexpected obstacles, pedestrians, or unusual road conditions. The vehicle appears to be operating within normal parameters.",
+      "true_label": "Normal",
+      "load_time_s": 0.662,
+      "inference_time_s": 1.491
+    },
+    {
+      "file": "Norm_1_600_725.mp4",
+      "result": "Anomaly",
+      "raw_output": "Classification: Anomaly",
+      "true_label": "Normal",
+      "load_time_s": 0.698,
+      "inference_time_s": 1.184
+    },
+    {
+      "file": "Norm_1_650_775.mp4",
+      "result": "Normal",
+      "raw_output": "Based on the provided video, there are no anomalies or unsafe conditions detected. The video shows a static image of a yellow and black patterned object with repeated elements, which appears to be a digital or printed design rather than a real-world scene. Since there are no moving objects, changing conditions, or environmental factors affecting visibility or safety, the video can be considered normal. There are no signs of obstacles, traffic issues, or other elements that would impact autonomous vehicle operation. The consistent and unchanging nature of the image suggests it is a controlled or artificial setting, not subject to real-time environmental variations.\n</think>",
+      "true_label": "Normal",
+      "load_time_s": 0.624,
+      "inference_time_s": 1.993
+    },
+    {
+      "file": "Norm_1_700_825.mp4",
+      "result": "Anomaly",
+      "raw_output": "Classification: Anomaly",
+      "true_label": "Normal",
+      "load_time_s": 0.626,
+      "inference_time_s": 1.161
+    },
+    {
+      "file": "Norm_1_750_875.mp4",
+      "result": "Anomaly",
+      "raw_output": "Anomaly",
+      "true_label": "Normal",
+      "load_time_s": 0.7,
+      "inference_time_s": 1.135
+    },
+    {
+      "file": "Norm_1_800_925.mp4",
+      "result": "Normal",
+      "raw_output": "Normal",
+      "true_label": "Normal",
+      "load_time_s": 0.684,
+      "inference_time_s": 1.155
+    },
+    {
+      "file": "Norm_1_850_975.mp4",
+      "result": "Normal",
+      "raw_output": "Normal",
+      "true_label": "Normal",
+      "load_time_s": 0.732,
+      "inference_time_s": 1.163
+    },
+    {
+      "file": "Norm_2_0_125.mp4",
+      "result": "Anomaly",
+      "raw_output": "Classification: Anomaly\n</model>",
+      "true_label": "Normal",
+      "load_time_s": 0.706,
+      "inference_time_s": 1.149
+    },
+    {
+      "file": "Norm_2_100_225.mp4",
+      "result": "Normal",
+      "raw_output": "Based on the video, there are no visible anomalies or unsafe conditions that would impact safe autonomous vehicle operation. The video shows a static scene with no moving objects, changing road conditions, or unexpected obstacles. The road appears clear, and the vehicle maintains a steady position without any signs of erratic behavior. Therefore, the video can be classified as normal.\n</answer>",
+      "true_label": "Normal",
+      "load_time_s": 1.086,
+      "inference_time_s": 1.619
+    },
+    {
+      "file": "Norm_2_1200_1325.mp4",
+      "result": "Anomaly",
+      "raw_output": "Classification: Anomaly",
+      "true_label": "Normal",
+      "load_time_s": 0.746,
+      "inference_time_s": 1.118
+    },
+    {
+      "file": "Norm_2_1250_1375.mp4",
+      "result": "Normal",
+      "raw_output": "Normal",
+      "true_label": "Normal",
+      "load_time_s": 0.721,
+      "inference_time_s": 1.159
+    },
+    {
+      "file": "Norm_2_150_275.mp4",
+      "result": "Normal",
+      "raw_output": "Based on the video, it appears that there are no anomalies or irregularities present. The video shows a static scene with a green leafy plant and a yellow background, which seems to be a simple graphic or image rather than a dynamic driving environment. There are no moving objects, changes in lighting, or any elements that would suggest the presence of obstacles, pedestrians, or vehicles. The scene remains constant throughout the frames, indicating a stable and controlled setting. Therefore, the video does not exhibit any conditions that would impact safe autonomous vehicle operation.\n</think>",
+      "true_label": "Normal",
+      "load_time_s": 0.735,
+      "inference_time_s": 1.877
+    },
+    {
+      "file": "Norm_2_200_325.mp4",
+      "result": "Normal",
+      "raw_output": "Normal",
+      "true_label": "Normal",
+      "load_time_s": 0.709,
+      "inference_time_s": 1.158
+    },
+    {
+      "file": "Norm_2_250_375.mp4",
+      "result": "Normal",
+      "raw_output": "Based on the video, there are no visible anomalies or unsafe conditions that would impact safe autonomous vehicle operation. The video shows a typical driving scenario with no unexpected obstacles, traffic rules violations, or unusual road hazards. All elements appear consistent with normal driving conditions. Therefore, the correct classification is \"Normal.\"\n</think>",
+      "true_label": "Normal",
+      "load_time_s": 0.744,
+      "inference_time_s": 1.549
+    },
+    {
+      "file": "Norm_2_300_425.mp4",
+      "result": "Normal",
+      "raw_output": "Based on the video, it appears that there are no anomalies or irregularities present. The video shows a standard driving scenario with no unexpected obstacles, unusual movements, or visual distortions. The vehicle maintains a steady course within its lane, adhering to traffic rules. The surroundings remain consistent and predictable, with no signs of disruptions or hazards. The overall scene aligns with typical road conditions suitable for autonomous vehicle operation. \n\n**Confidence Level:** High\n</think>",
+      "true_label": "Normal",
+      "load_time_s": 0.749,
+      "inference_time_s": 2.441
+    },
+    {
+      "file": "Norm_2_350_475.mp4",
+      "result": "Normal",
+      "raw_output": "Classification: Normal",
+      "true_label": "Normal",
+      "load_time_s": 0.78,
+      "inference_time_s": 1.169
+    },
+    {
+      "file": "Norm_2_400_525.mp4",
+      "result": "Normal",
+      "raw_output": "Based on the provided video, there are no anomalies or unusual events observed. The video shows a typical traffic scene with cars moving along a road, following traffic signals and rules. All vehicles appear to be behaving as expected under normal circumstances. The road conditions seem clear, and there are no signs of unexpected behavior such as sudden stops, erratic movements, or objects obstructing the view. The traffic lights function normally, and the cars respond appropriately to the signals. Therefore, the video appears to be operating within standard parameters without any anomalies.\n</answer>",
+      "true_label": "Normal",
+      "load_time_s": 0.735,
+      "inference_time_s": 1.871
+    },
+    {
+      "file": "Norm_2_450_575.mp4",
+      "result": "Anomaly",
+      "raw_output": "Classification: Anomaly",
+      "true_label": "Normal",
+      "load_time_s": 0.726,
+      "inference_time_s": 1.187
+    },
+    {
+      "file": "Norm_2_500_625.mp4",
+      "result": "Anomaly",
+      "raw_output": "Classification: Anomaly",
+      "true_label": "Normal",
+      "load_time_s": 1.207,
+      "inference_time_s": 1.182
+    },
+    {
+      "file": "Norm_2_50_175.mp4",
+      "result": "Normal",
+      "raw_output": "Based on the video, there are no anomalies or irregularities observed. The video shows a static image of a green and white background with a yellow border, which appears to be part of a webpage or interface. There is no motion, interaction, or environmental context that would suggest any anomalies related to autonomous vehicle operation. The scene is consistent and lacks dynamic elements that could impact safe driving conditions.\n</think>",
+      "true_label": "Normal",
+      "load_time_s": 0.72,
+      "inference_time_s": 1.676
+    },
+    {
+      "file": "Norm_2_550_675.mp4",
+      "result": "Anomaly",
+      "raw_output": "Classification: Anomaly",
+      "true_label": "Normal",
+      "load_time_s": 0.719,
+      "inference_time_s": 1.184
+    },
+    {
+      "file": "Norm_2_600_725.mp4",
+      "result": "Normal",
+      "raw_output": "Based on the provided video, there are no visible anomalies or unusual events occurring. The video shows a standard driving scenario with no signs of obstacles, pedestrians, vehicles violating traffic rules, or any other hazards that would impact safe autonomous vehicle operation. The road appears clear, and all elements seem to be functioning as expected. Therefore, the classification for this video is Normal.\n</think>",
+      "true_label": "Normal",
+      "load_time_s": 0.718,
+      "inference_time_s": 1.654
+    },
+    {
+      "file": "Norm_2_650_775.mp4",
+      "result": "Normal",
+      "raw_output": "Based on the video, there are no anomalies or irregularities observed. The video appears to be a standard driving scene without any unusual events or conditions that would impact safe autonomous vehicle operation.",
+      "true_label": "Normal",
+      "load_time_s": 0.748,
+      "inference_time_s": 1.395
+    },
+    {
+      "file": "Norm_2_700_825.mp4",
+      "result": "Normal",
+      "raw_output": "Normal",
+      "true_label": "Normal",
+      "load_time_s": 0.707,
+      "inference_time_s": 1.159
+    }
+  ]
+}
