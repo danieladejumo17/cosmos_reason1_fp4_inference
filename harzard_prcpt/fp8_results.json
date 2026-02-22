@@ -1,0 +1,389 @@
+{
+  "config": {
+    "model": "nvidia/Cosmos-Reason1-7B",
+    "inference_mode": "bitsandbytes INT8",
+    "fps": 4,
+    "max_tokens": 7,
+    "target_resolution": "250x250",
+    "quantization": "INT8 (bitsandbytes load_in_8bit)",
+    "compute_type": "INT8 matrix multiplication",
+    "gpu": "NVIDIA GeForce RTX 5090",
+    "compute_capability": "12.0"
+  },
+  "summary": {
+    "total_videos": 44,
+    "anomalies": 29,
+    "normals": 15,
+    "unknowns": 0,
+    "errors": 0,
+    "total_load_time_s": 16.832,
+    "total_inference_time_s": 47.454,
+    "total_time_s": 64.289,
+    "avg_inference_time_s": 1.079
+  },
+  "metrics": {
+    "TP": 13,
+    "TN": 15,
+    "FP": 16,
+    "FN": 0,
+    "Accuracy": 0.6363636363636364,
+    "Precision": 0.4482758620689655,
+    "Recall": 1.0,
+    "F1-Score": 0.6190476190476191,
+    "Avg Inference Time": 1.0785019939596003
+  },
+  "results": [
+    {
+      "file": "Anom_1_400_525.mp4",
+      "result": "Anomaly",
+      "raw_output": "Classification: Anomaly\n\nThe car",
+      "true_label": "Anomaly",
+      "load_time_s": 0.609,
+      "inference_time_s": 1.24
+    },
+    {
+      "file": "Anom_1_450_575.mp4",
+      "result": "Anomaly",
+      "raw_output": "Classification: Anomaly\n\nThe train",
+      "true_label": "Anomaly",
+      "load_time_s": 0.423,
+      "inference_time_s": 1.179
+    },
+    {
+      "file": "Anom_1_500_625.mp4",
+      "result": "Anomaly",
+      "raw_output": "Classification: Anomaly\n\nThe car",
+      "true_label": "Anomaly",
+      "load_time_s": 0.335,
+      "inference_time_s": 1.175
+    },
+    {
+      "file": "Anom_1_550_675.mp4",
+      "result": "Anomaly",
+      "raw_output": "Classification: Anomaly\n\nThe car",
+      "true_label": "Anomaly",
+      "load_time_s": 0.333,
+      "inference_time_s": 1.177
+    },
+    {
+      "file": "Anom_2_1000_1125.mp4",
+      "result": "Anomaly",
+      "raw_output": "Classification: Anomaly\n\nThe cyclist",
+      "true_label": "Anomaly",
+      "load_time_s": 0.384,
+      "inference_time_s": 1.22
+    },
+    {
+      "file": "Anom_2_1050_1175.mp4",
+      "result": "Anomaly",
+      "raw_output": "Classification: Anomaly\n\nThe car",
+      "true_label": "Anomaly",
+      "load_time_s": 0.38,
+      "inference_time_s": 1.176
+    },
+    {
+      "file": "Anom_2_1100_1225.mp4",
+      "result": "Anomaly",
+      "raw_output": "Classification: Anomaly\n\nThe cyclist",
+      "true_label": "Anomaly",
+      "load_time_s": 0.388,
+      "inference_time_s": 1.2
+    },
+    {
+      "file": "Anom_2_1150_1275.mp4",
+      "result": "Anomaly",
+      "raw_output": "Classification: Anomaly\n\nThe white",
+      "true_label": "Anomaly",
+      "load_time_s": 0.367,
+      "inference_time_s": 1.209
+    },
+    {
+      "file": "Anom_2_750_875.mp4",
+      "result": "Anomaly",
+      "raw_output": "Classification: Anomaly\n\nThe cyclist",
+      "true_label": "Anomaly",
+      "load_time_s": 0.674,
+      "inference_time_s": 1.182
+    },
+    {
+      "file": "Anom_2_800_925.mp4",
+      "result": "Anomaly",
+      "raw_output": "Classification: Anomaly\n\nThe cyclist",
+      "true_label": "Anomaly",
+      "load_time_s": 0.377,
+      "inference_time_s": 1.204
+    },
+    {
+      "file": "Anom_2_850_975.mp4",
+      "result": "Anomaly",
+      "raw_output": "Classification: Anomaly\n\nThe white",
+      "true_label": "Anomaly",
+      "load_time_s": 0.373,
+      "inference_time_s": 1.178
+    },
+    {
+      "file": "Anom_2_900_1025.mp4",
+      "result": "Anomaly",
+      "raw_output": "Classification: Anomaly\n\nThe white",
+      "true_label": "Anomaly",
+      "load_time_s": 0.373,
+      "inference_time_s": 1.181
+    },
+    {
+      "file": "Anom_2_950_1075.mp4",
+      "result": "Anomaly",
+      "raw_output": "Classification: Anomaly\n\nThe white",
+      "true_label": "Anomaly",
+      "load_time_s": 0.384,
+      "inference_time_s": 1.218
+    },
+    {
+      "file": "Norm_1_0_125.mp4",
+      "result": "Normal",
+      "raw_output": "Classification: Normal",
+      "true_label": "Normal",
+      "load_time_s": 0.315,
+      "inference_time_s": 0.862
+    },
+    {
+      "file": "Norm_1_100_225.mp4",
+      "result": "Normal",
+      "raw_output": "Classification: Normal",
+      "true_label": "Normal",
+      "load_time_s": 0.309,
+      "inference_time_s": 0.863
+    },
+    {
+      "file": "Norm_1_150_275.mp4",
+      "result": "Normal",
+      "raw_output": "Classification: Normal",
+      "true_label": "Normal",
+      "load_time_s": 0.32,
+      "inference_time_s": 0.865
+    },
+    {
+      "file": "Norm_1_200_325.mp4",
+      "result": "Anomaly",
+      "raw_output": "Classification: Anomaly\n\nThe car",
+      "true_label": "Normal",
+      "load_time_s": 0.318,
+      "inference_time_s": 1.185
+    },
+    {
+      "file": "Norm_1_250_375.mp4",
+      "result": "Anomaly",
+      "raw_output": "Classification: Anomaly\n\nThe car",
+      "true_label": "Normal",
+      "load_time_s": 0.315,
+      "inference_time_s": 1.179
+    },
+    {
+      "file": "Norm_1_300_425.mp4",
+      "result": "Anomaly",
+      "raw_output": "Classification: Anomaly\n\nThe car",
+      "true_label": "Normal",
+      "load_time_s": 0.618,
+      "inference_time_s": 1.184
+    },
+    {
+      "file": "Norm_1_350_475.mp4",
+      "result": "Anomaly",
+      "raw_output": "Classification: Anomaly\n\nThe train",
+      "true_label": "Normal",
+      "load_time_s": 0.323,
+      "inference_time_s": 1.182
+    },
+    {
+      "file": "Norm_1_50_175.mp4",
+      "result": "Normal",
+      "raw_output": "Classification: Normal",
+      "true_label": "Normal",
+      "load_time_s": 0.32,
+      "inference_time_s": 0.865
+    },
+    {
+      "file": "Norm_1_600_725.mp4",
+      "result": "Normal",
+      "raw_output": "Classification: Normal",
+      "true_label": "Normal",
+      "load_time_s": 0.314,
+      "inference_time_s": 0.874
+    },
+    {
+      "file": "Norm_1_650_775.mp4",
+      "result": "Anomaly",
+      "raw_output": "Classification: Anomaly\n\nThe video",
+      "true_label": "Normal",
+      "load_time_s": 0.305,
+      "inference_time_s": 1.172
+    },
+    {
+      "file": "Norm_1_700_825.mp4",
+      "result": "Normal",
+      "raw_output": "Classification: Normal",
+      "true_label": "Normal",
+      "load_time_s": 0.309,
+      "inference_time_s": 0.861
+    },
+    {
+      "file": "Norm_1_750_875.mp4",
+      "result": "Normal",
+      "raw_output": "Classification: Normal",
+      "true_label": "Normal",
+      "load_time_s": 0.31,
+      "inference_time_s": 0.862
+    },
+    {
+      "file": "Norm_1_800_925.mp4",
+      "result": "Normal",
+      "raw_output": "Classification: Normal",
+      "true_label": "Normal",
+      "load_time_s": 0.333,
+      "inference_time_s": 0.858
+    },
+    {
+      "file": "Norm_1_850_975.mp4",
+      "result": "Normal",
+      "raw_output": "Classification: Normal",
+      "true_label": "Normal",
+      "load_time_s": 0.354,
+      "inference_time_s": 0.868
+    },
+    {
+      "file": "Norm_2_0_125.mp4",
+      "result": "Anomaly",
+      "raw_output": "Classification: Anomaly\n\nThe description",
+      "true_label": "Normal",
+      "load_time_s": 0.352,
+      "inference_time_s": 1.212
+    },
+    {
+      "file": "Norm_2_100_225.mp4",
+      "result": "Anomaly",
+      "raw_output": "Classification: Anomaly\n\nThe description",
+      "true_label": "Normal",
+      "load_time_s": 0.656,
+      "inference_time_s": 1.18
+    },
+    {
+      "file": "Norm_2_1200_1325.mp4",
+      "result": "Anomaly",
+      "raw_output": "Classification: Anomaly\n\nThe description",
+      "true_label": "Normal",
+      "load_time_s": 0.351,
+      "inference_time_s": 1.178
+    },
+    {
+      "file": "Norm_2_1250_1375.mp4",
+      "result": "Normal",
+      "raw_output": "Classification: Normal",
+      "true_label": "Normal",
+      "load_time_s": 0.366,
+      "inference_time_s": 0.86
+    },
+    {
+      "file": "Norm_2_150_275.mp4",
+      "result": "Normal",
+      "raw_output": "Classification: Normal",
+      "true_label": "Normal",
+      "load_time_s": 0.352,
+      "inference_time_s": 0.859
+    },
+    {
+      "file": "Norm_2_200_325.mp4",
+      "result": "Normal",
+      "raw_output": "Classification: Normal",
+      "true_label": "Normal",
+      "load_time_s": 0.362,
+      "inference_time_s": 0.861
+    },
+    {
+      "file": "Norm_2_250_375.mp4",
+      "result": "Normal",
+      "raw_output": "Classification: Normal",
+      "true_label": "Normal",
+      "load_time_s": 0.358,
+      "inference_time_s": 0.861
+    },
+    {
+      "file": "Norm_2_300_425.mp4",
+      "result": "Normal",
+      "raw_output": "Classification: Normal",
+      "true_label": "Normal",
+      "load_time_s": 0.354,
+      "inference_time_s": 0.867
+    },
+    {
+      "file": "Norm_2_350_475.mp4",
+      "result": "Anomaly",
+      "raw_output": "Classification: Anomaly\n\nIn the",
+      "true_label": "Normal",
+      "load_time_s": 0.359,
+      "inference_time_s": 1.185
+    },
+    {
+      "file": "Norm_2_400_525.mp4",
+      "result": "Anomaly",
+      "raw_output": "Classification: Anomaly\n\nIn the",
+      "true_label": "Normal",
+      "load_time_s": 0.345,
+      "inference_time_s": 1.202
+    },
+    {
+      "file": "Norm_2_450_575.mp4",
+      "result": "Anomaly",
+      "raw_output": "Classification: Anomaly\n\nThe car",
+      "true_label": "Normal",
+      "load_time_s": 0.333,
+      "inference_time_s": 1.182
+    },
+    {
+      "file": "Norm_2_500_625.mp4",
+      "result": "Normal",
+      "raw_output": "Classification: Normal",
+      "true_label": "Normal",
+      "load_time_s": 0.649,
+      "inference_time_s": 0.866
+    },
+    {
+      "file": "Norm_2_50_175.mp4",
+      "result": "Anomaly",
+      "raw_output": "Classification: Anomaly\n\nThe description",
+      "true_label": "Normal",
+      "load_time_s": 0.354,
+      "inference_time_s": 1.183
+    },
+    {
+      "file": "Norm_2_550_675.mp4",
+      "result": "Anomaly",
+      "raw_output": "Classification: Anomaly\n\nThe car",
+      "true_label": "Normal",
+      "load_time_s": 0.361,
+      "inference_time_s": 1.186
+    },
+    {
+      "file": "Norm_2_600_725.mp4",
+      "result": "Anomaly",
+      "raw_output": "Classification: Anomaly\n\nThe red",
+      "true_label": "Normal",
+      "load_time_s": 0.365,
+      "inference_time_s": 1.182
+    },
+    {
+      "file": "Norm_2_650_775.mp4",
+      "result": "Anomaly",
+      "raw_output": "Classification: Anomaly\n\nThe red",
+      "true_label": "Normal",
+      "load_time_s": 0.377,
+      "inference_time_s": 1.186
+    },
+    {
+      "file": "Norm_2_700_825.mp4",
+      "result": "Anomaly",
+      "raw_output": "Classification: Anomaly\n\nThe red",
+      "true_label": "Normal",
+      "load_time_s": 0.376,
+      "inference_time_s": 1.184
+    }
+  ]
+}

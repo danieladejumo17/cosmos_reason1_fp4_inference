@@ -1,0 +1,390 @@
+{
+  "config": {
+    "engine": "TensorRT-LLM",
+    "model": "nvidia/Cosmos-Reason1-7B",
+    "checkpoint": "/workspace/ms_proj/cosmos_reason1_fp4_inference/cosmos-reason1-nvfp4",
+    "quantization": "NVFP4",
+    "compute_type": "FP4 Tensor Core GEMM (Blackwell native)",
+    "fps": 4,
+    "max_tokens": 7,
+    "target_resolution": "250x250",
+    "gpu": "NVIDIA GeForce RTX 5090",
+    "compute_capability": "12.0"
+  },
+  "summary": {
+    "total_videos": 44,
+    "anomalies": 4,
+    "normals": 40,
+    "unknowns": 0,
+    "errors": 0,
+    "total_load_time_s": 30.589,
+    "total_inference_time_s": 20.462,
+    "avg_inference_time_s": 0.465,
+    "model_load_time_s": 46.3
+  },
+  "metrics": {
+    "TP": 0,
+    "TN": 27,
+    "FP": 4,
+    "FN": 13,
+    "Accuracy": 0.6136363636363636,
+    "Precision": 0.0,
+    "Recall": 0.0,
+    "F1-Score": 0,
+    "Avg Inference Time": 0.46505028009414673
+  },
+  "results": [
+    {
+      "file": "Anom_1_400_525.mp4",
+      "result": "Normal",
+      "raw_output": "Classification: Normal",
+      "true_label": "Anomaly",
+      "load_time_s": 0.719,
+      "inference_time_s": 0.896
+    },
+    {
+      "file": "Anom_1_450_575.mp4",
+      "result": "Normal",
+      "raw_output": "Classification: Normal",
+      "true_label": "Anomaly",
+      "load_time_s": 0.693,
+      "inference_time_s": 0.484
+    },
+    {
+      "file": "Anom_1_500_625.mp4",
+      "result": "Normal",
+      "raw_output": "Classification: Normal",
+      "true_label": "Anomaly",
+      "load_time_s": 0.646,
+      "inference_time_s": 0.441
+    },
+    {
+      "file": "Anom_1_550_675.mp4",
+      "result": "Normal",
+      "raw_output": "Classification: Normal",
+      "true_label": "Anomaly",
+      "load_time_s": 0.654,
+      "inference_time_s": 0.445
+    },
+    {
+      "file": "Anom_2_1000_1125.mp4",
+      "result": "Normal",
+      "raw_output": "Classification: Normal",
+      "true_label": "Anomaly",
+      "load_time_s": 0.689,
+      "inference_time_s": 0.48
+    },
+    {
+      "file": "Anom_2_1050_1175.mp4",
+      "result": "Normal",
+      "raw_output": "Classification: Normal",
+      "true_label": "Anomaly",
+      "load_time_s": 0.685,
+      "inference_time_s": 0.43
+    },
+    {
+      "file": "Anom_2_1100_1225.mp4",
+      "result": "Normal",
+      "raw_output": "Classification: Normal",
+      "true_label": "Anomaly",
+      "load_time_s": 0.747,
+      "inference_time_s": 0.452
+    },
+    {
+      "file": "Anom_2_1150_1275.mp4",
+      "result": "Normal",
+      "raw_output": "Classification: Normal",
+      "true_label": "Anomaly",
+      "load_time_s": 0.668,
+      "inference_time_s": 0.439
+    },
+    {
+      "file": "Anom_2_750_875.mp4",
+      "result": "Normal",
+      "raw_output": "Classification: Normal",
+      "true_label": "Anomaly",
+      "load_time_s": 1.189,
+      "inference_time_s": 0.483
+    },
+    {
+      "file": "Anom_2_800_925.mp4",
+      "result": "Normal",
+      "raw_output": "Classification: Normal",
+      "true_label": "Anomaly",
+      "load_time_s": 0.684,
+      "inference_time_s": 0.443
+    },
+    {
+      "file": "Anom_2_850_975.mp4",
+      "result": "Normal",
+      "raw_output": "Classification: Normal",
+      "true_label": "Anomaly",
+      "load_time_s": 0.643,
+      "inference_time_s": 0.439
+    },
+    {
+      "file": "Anom_2_900_1025.mp4",
+      "result": "Normal",
+      "raw_output": "Classification: Normal",
+      "true_label": "Anomaly",
+      "load_time_s": 0.66,
+      "inference_time_s": 0.447
+    },
+    {
+      "file": "Anom_2_950_1075.mp4",
+      "result": "Normal",
+      "raw_output": "Classification: Normal",
+      "true_label": "Anomaly",
+      "load_time_s": 0.66,
+      "inference_time_s": 0.443
+    },
+    {
+      "file": "Norm_1_0_125.mp4",
+      "result": "Normal",
+      "raw_output": "Classification: Normal",
+      "true_label": "Normal",
+      "load_time_s": 0.651,
+      "inference_time_s": 0.451
+    },
+    {
+      "file": "Norm_1_100_225.mp4",
+      "result": "Normal",
+      "raw_output": "Classification: Normal",
+      "true_label": "Normal",
+      "load_time_s": 0.61,
+      "inference_time_s": 0.477
+    },
+    {
+      "file": "Norm_1_150_275.mp4",
+      "result": "Normal",
+      "raw_output": "Classification: Normal",
+      "true_label": "Normal",
+      "load_time_s": 0.561,
+      "inference_time_s": 0.446
+    },
+    {
+      "file": "Norm_1_200_325.mp4",
+      "result": "Normal",
+      "raw_output": "Classification: Normal",
+      "true_label": "Normal",
+      "load_time_s": 0.653,
+      "inference_time_s": 0.449
+    },
+    {
+      "file": "Norm_1_250_375.mp4",
+      "result": "Normal",
+      "raw_output": "Classification: Normal",
+      "true_label": "Normal",
+      "load_time_s": 0.597,
+      "inference_time_s": 0.472
+    },
+    {
+      "file": "Norm_1_300_425.mp4",
+      "result": "Normal",
+      "raw_output": "Classification: Normal",
+      "true_label": "Normal",
+      "load_time_s": 1.082,
+      "inference_time_s": 0.451
+    },
+    {
+      "file": "Norm_1_350_475.mp4",
+      "result": "Normal",
+      "raw_output": "Classification: Normal",
+      "true_label": "Normal",
+      "load_time_s": 0.611,
+      "inference_time_s": 0.48
+    },
+    {
+      "file": "Norm_1_50_175.mp4",
+      "result": "Normal",
+      "raw_output": "Classification: Normal",
+      "true_label": "Normal",
+      "load_time_s": 0.599,
+      "inference_time_s": 0.427
+    },
+    {
+      "file": "Norm_1_600_725.mp4",
+      "result": "Normal",
+      "raw_output": "Classification: Normal",
+      "true_label": "Normal",
+      "load_time_s": 0.639,
+      "inference_time_s": 0.453
+    },
+    {
+      "file": "Norm_1_650_775.mp4",
+      "result": "Anomaly",
+      "raw_output": "Classification: Anomaly",
+      "true_label": "Normal",
+      "load_time_s": 0.602,
+      "inference_time_s": 0.498
+    },
+    {
+      "file": "Norm_1_700_825.mp4",
+      "result": "Anomaly",
+      "raw_output": "Classification: Anomaly\n\nThe video",
+      "true_label": "Normal",
+      "load_time_s": 0.639,
+      "inference_time_s": 0.477
+    },
+    {
+      "file": "Norm_1_750_875.mp4",
+      "result": "Anomaly",
+      "raw_output": "Classification: Anomaly\n\nThe video",
+      "true_label": "Normal",
+      "load_time_s": 0.623,
+      "inference_time_s": 0.467
+    },
+    {
+      "file": "Norm_1_800_925.mp4",
+      "result": "Anomaly",
+      "raw_output": "Classification: Anomaly\n\nThe image",
+      "true_label": "Normal",
+      "load_time_s": 0.639,
+      "inference_time_s": 0.457
+    },
+    {
+      "file": "Norm_1_850_975.mp4",
+      "result": "Normal",
+      "raw_output": "Classification: Normal",
+      "true_label": "Normal",
+      "load_time_s": 0.693,
+      "inference_time_s": 0.493
+    },
+    {
+      "file": "Norm_2_0_125.mp4",
+      "result": "Normal",
+      "raw_output": "Classification: Normal",
+      "true_label": "Normal",
+      "load_time_s": 0.648,
+      "inference_time_s": 0.455
+    },
+    {
+      "file": "Norm_2_100_225.mp4",
+      "result": "Normal",
+      "raw_output": "Classification: Normal",
+      "true_label": "Normal",
+      "load_time_s": 1.148,
+      "inference_time_s": 0.448
+    },
+    {
+      "file": "Norm_2_1200_1325.mp4",
+      "result": "Normal",
+      "raw_output": "Classification: Normal",
+      "true_label": "Normal",
+      "load_time_s": 0.652,
+      "inference_time_s": 0.446
+    },
+    {
+      "file": "Norm_2_1250_1375.mp4",
+      "result": "Normal",
+      "raw_output": "Classification: Normal",
+      "true_label": "Normal",
+      "load_time_s": 0.663,
+      "inference_time_s": 0.435
+    },
+    {
+      "file": "Norm_2_150_275.mp4",
+      "result": "Normal",
+      "raw_output": "Classification: Normal",
+      "true_label": "Normal",
+      "load_time_s": 0.684,
+      "inference_time_s": 0.429
+    },
+    {
+      "file": "Norm_2_200_325.mp4",
+      "result": "Normal",
+      "raw_output": "Classification: Normal",
+      "true_label": "Normal",
+      "load_time_s": 0.629,
+      "inference_time_s": 0.461
+    },
+    {
+      "file": "Norm_2_250_375.mp4",
+      "result": "Normal",
+      "raw_output": "Classification: Normal",
+      "true_label": "Normal",
+      "load_time_s": 0.683,
+      "inference_time_s": 0.436
+    },
+    {
+      "file": "Norm_2_300_425.mp4",
+      "result": "Normal",
+      "raw_output": "Classification: Normal",
+      "true_label": "Normal",
+      "load_time_s": 0.646,
+      "inference_time_s": 0.44
+    },
+    {
+      "file": "Norm_2_350_475.mp4",
+      "result": "Normal",
+      "raw_output": "Classification: Normal",
+      "true_label": "Normal",
+      "load_time_s": 0.622,
+      "inference_time_s": 0.467
+    },
+    {
+      "file": "Norm_2_400_525.mp4",
+      "result": "Normal",
+      "raw_output": "Classification: Normal",
+      "true_label": "Normal",
+      "load_time_s": 0.659,
+      "inference_time_s": 0.457
+    },
+    {
+      "file": "Norm_2_450_575.mp4",
+      "result": "Normal",
+      "raw_output": "Classification: Normal",
+      "true_label": "Normal",
+      "load_time_s": 0.634,
+      "inference_time_s": 0.456
+    },
+    {
+      "file": "Norm_2_500_625.mp4",
+      "result": "Normal",
+      "raw_output": "Classification: Normal",
+      "true_label": "Normal",
+      "load_time_s": 1.015,
+      "inference_time_s": 0.488
+    },
+    {
+      "file": "Norm_2_50_175.mp4",
+      "result": "Normal",
+      "raw_output": "Classification: Normal",
+      "true_label": "Normal",
+      "load_time_s": 0.655,
+      "inference_time_s": 0.448
+    },
+    {
+      "file": "Norm_2_550_675.mp4",
+      "result": "Normal",
+      "raw_output": "Classification: Normal",
+      "true_label": "Normal",
+      "load_time_s": 0.654,
+      "inference_time_s": 0.442
+    },
+    {
+      "file": "Norm_2_600_725.mp4",
+      "result": "Normal",
+      "raw_output": "Classification: Normal",
+      "true_label": "Normal",
+      "load_time_s": 0.669,
+      "inference_time_s": 0.451
+    },
+    {
+      "file": "Norm_2_650_775.mp4",
+      "result": "Normal",
+      "raw_output": "Classification: Normal",
+      "true_label": "Normal",
+      "load_time_s": 0.659,
+      "inference_time_s": 0.444
+    },
+    {
+      "file": "Norm_2_700_825.mp4",
+      "result": "Normal",
+      "raw_output": "Classification: Normal",
+      "true_label": "Normal",
+      "load_time_s": 0.735,
+      "inference_time_s": 0.44
+    }
+  ]
+}

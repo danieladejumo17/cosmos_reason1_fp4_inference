@@ -36,14 +36,14 @@ if str(_PROJECT_ROOT) not in sys.path:
 from utils.metrics import Metrics
 from utils.inference_video_writer import annotate_and_write_frames
 
-from cosmos_fp4_inference import (
+from .cosmos_fp4_inference import (
     DEFAULT_MODEL,
     SOURCE_MODEL,
     verify_gpu,
     load_trtllm_model,
     load_video_frames,
     analyze_video,
-    parse_result as _parse_result_str,
+    parse_result as _parse_result_str, # TODO Use independent func
 )
 
 
@@ -206,6 +206,7 @@ class CosmosFP4Runner:
     def parse_result(raw_output: str) -> bool:
         """Map model output to a boolean label (True = Anomaly)."""
         return _parse_result_str(raw_output) == "Anomaly"
+        # TODO TOO BRITTLE
 
     @staticmethod
     def _print_metrics(predictions, actuals) -> None:
