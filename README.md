@@ -12,16 +12,25 @@ bash setup_fp4_vast.sh --skip-hf-login
 # Download STU dataset and setup venv for STU dataset
 bash setup_stu_dataset.sh
 
+# Download and prepare the Harzard Perception Test (HPT) Dataset
+bash setup_hpt_dataset.sh
+
 # Activate environment
 source activate_fp4.sh
 
 # Quantize Cosmos-Reason1-7B to NVFP4 (once, ~2 minutes)
 python3 quantize_cosmos_fp4.py --output_dir ./cosmos-reason1-nvfp4
 
-# Run FP4 inference
+# Run FP4 inference on HPT Dataset
+python3 cosmos_fp4_inference.py --video_dir harzard_prcpt/data/hpt_5s_videos --output_file harzard_prcpt/cosmos_fp4_results.json
+
+# Run INT8 inference on HPT Dataset (for comparison)
+python3 fp8_inference.py --video_dir harzard_prcpt/data/hpt_5s_videos --output_json harzard_prcpt/cosmos_int8_results.json
+
+# Run FP4 inference on STU Dataset
 python3 cosmos_fp4_inference.py --video_dir stu_dataset/stu_videos --output_file stu_dataset/cosmos_fp4_results.json
 
-# Run INT8 inference (for comparison)
+# Run INT8 inference on STU Dataset (for comparison)
 python3 fp8_inference.py --video_dir stu_dataset/stu_videos --output_json stu_dataset/cosmos_int8_results.json
 ```
 

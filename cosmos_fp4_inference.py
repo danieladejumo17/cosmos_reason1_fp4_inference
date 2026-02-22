@@ -437,7 +437,7 @@ if __name__ == "__main__":
 
 
 """
-That's a solid result. Here's the final comparison across all configurations:
+Here's the final comparison across all configurations:
 Config	Avg Inference	TP	TN	FP	FN	Accuracy	Recall	F1
 Original (250, 4fps, 7tok)	0.465s	0	27	4	13	0.614	0.000	0.000
 Improved (500, 8fps, 256tok)	1.365s	3	22	9	10	0.568	0.231	0.240
