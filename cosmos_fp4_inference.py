@@ -29,10 +29,12 @@ from pathlib import Path
 import cv2
 import torch
 
+from metrics import Metrics
+
 warnings.filterwarnings("ignore", category=UserWarning)
 
 # Cosmos-Reason1-7B quantized to NVFP4 (local checkpoint)
-DEFAULT_MODEL = "./cosmos-reason1-nvfp4"
+DEFAULT_MODEL = str(Path(__file__).resolve().parent / "cosmos-reason1-nvfp4")
 # The original (unquantized) model for processor/tokenizer
 SOURCE_MODEL = "nvidia/Cosmos-Reason1-7B"
 
@@ -267,8 +269,18 @@ def main():
     results = []
     total_inference_time = 0
     total_load_time = 0
+    metrics = Metrics()
 
     for idx, video_path in enumerate(video_files, 1):
+        # Derive ground-truth label from filename prefix
+        fname = video_path.stem
+        if fname.startswith("Anom"):
+            true_label = 1  # Anomaly
+        elif fname.startswith("Norm"):
+            true_label = 0  # Normal
+        else:
+            true_label = None
+
         # Load video
         vload_start = time.time()
         try:
@@ -288,6 +300,11 @@ def main():
             infer_time = time.time() - infer_start
             total_inference_time += infer_time
 
+            pred_label = 1 if result == "Anomaly" else 0
+
+            if true_label is not None:
+                metrics.update([pred_label], [true_label], [infer_time])
+
             print(f"[{idx}/{len(video_files)}] {video_path.name}: {result} "
                   f"(Load: {vload_time:.2f}s, FP4 Inference: {infer_time:.2f}s)")
 
@@ -295,6 +312,7 @@ def main():
                 "file": video_path.name,
                 "result": result,
                 "raw_output": raw,
+                "true_label": "Anomaly" if true_label == 1 else ("Normal" if true_label == 0 else "Unknown"),
                 "load_time_s": round(vload_time, 3),
                 "inference_time_s": round(infer_time, 3),
             })
@@ -329,6 +347,17 @@ def main():
         avg_time = total_inference_time / successful
         print(f"Average FP4 inference: {avg_time:.3f}s per video")
 
+    if metrics.count > 0:
+        m = metrics.compute()
+        print(f"\nCLASSIFICATION METRICS")
+        print("=" * 70)
+        print(f"  TP: {m['TP']}  TN: {m['TN']}  FP: {m['FP']}  FN: {m['FN']}")
+        print(f"  Accuracy:  {m['Accuracy']:.4f}")
+        print(f"  Precision: {m['Precision']:.4f}")
+        print(f"  Recall:    {m['Recall']:.4f}")
+        print(f"  F1-Score:  {m['F1-Score']:.4f}")
+        print(f"  Avg Inference Time: {m['Avg Inference Time']:.3f}s")
+
     if args.output_file:
         output_data = {
             "config": {
@@ -354,6 +383,7 @@ def main():
                 "avg_inference_time_s": round(avg_time, 3) if avg_time else None,
                 "model_load_time_s": round(model_load_time, 1),
             },
+            "metrics": metrics.compute() if metrics.count > 0 else None,
             "results": results,
         }
 

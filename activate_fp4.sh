@@ -63,8 +63,9 @@ else
 fi
 
 # =============================================================================
-# 1b. Force torchvision for video reading (avoid torchcodec/FFmpeg errors)
+# 1b. Force decord for video reading (avoid torchcodec/FFmpeg errors)
 # =============================================================================
+# export FORCE_QWENVL_VIDEO_READER=decord
 export FORCE_QWENVL_VIDEO_READER=torchvision
 
 # =============================================================================

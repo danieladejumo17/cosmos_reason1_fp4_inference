@@ -11,6 +11,8 @@ import transformers
 import qwen_vl_utils
 import cv2
 
+from metrics import Metrics
+
 warnings.filterwarnings("ignore", category=UserWarning)
 
 import os
@@ -191,10 +193,19 @@ def main():
     total_load_time = 0.0
     total_inference_time = 0.0
     counts = {"Anomaly": 0, "Normal": 0, "Unknown": 0, "Error": 0}
+    metrics = Metrics()
 
     batch_start_time = time.time()
 
     for i, video_path in enumerate(video_files, 1):
+        fname = video_path.stem
+        if fname.startswith("Anom"):
+            true_label = 1  # Anomaly
+        elif fname.startswith("Norm"):
+            true_label = 0  # Normal
+        else:
+            true_label = None
+
         load_start = time.time()
         try:
             prefetched_data = load_video(video_path, args.fps, target_resolution)
@@ -209,10 +220,15 @@ def main():
 
             counts[result] += 1
 
+            pred_label = 1 if result == "Anomaly" else 0
+            if true_label is not None:
+                metrics.update([pred_label], [true_label], [inference_time])
+
             results.append({
                 "file": video_path.name,
                 "result": result,
                 "raw_output": raw,
+                "true_label": "Anomaly" if true_label == 1 else ("Normal" if true_label == 0 else "Unknown"),
                 "load_time_s": round(load_time, 3),
                 "inference_time_s": round(inference_time, 3),
             })
@@ -259,6 +275,7 @@ def main():
             "total_time_s": round(total_time, 3),
             "avg_inference_time_s": round(total_inference_time / len(video_files), 3) if video_files else 0,
         },
+        "metrics": metrics.compute() if metrics.count > 0 else None,
         "results": results,
     }
 
@@ -278,6 +295,18 @@ def main():
     print(f"\nTotal load time: {total_load_time:.2f}s")
     print(f"Total INT8 inference time: {total_inference_time:.2f}s")
     print(f"Average INT8 inference time: {total_inference_time / len(video_files):.2f}s per video")
+
+    if metrics.count > 0:
+        m = metrics.compute()
+        print(f"\nCLASSIFICATION METRICS")
+        print("=" * 50)
+        print(f"  TP: {m['TP']}  TN: {m['TN']}  FP: {m['FP']}  FN: {m['FN']}")
+        print(f"  Accuracy:  {m['Accuracy']:.4f}")
+        print(f"  Precision: {m['Precision']:.4f}")
+        print(f"  Recall:    {m['Recall']:.4f}")
+        print(f"  F1-Score:  {m['F1-Score']:.4f}")
+        print(f"  Avg Inference Time: {m['Avg Inference Time']:.3f}s")
+
     print(f"\nResults saved to: {output_json_path}")
     print("✅ INT8 inference complete.")
 

@@ -6,7 +6,8 @@ Accelerated video anomaly detection using **NVIDIA TensorRT-LLM** with **native 
 
 ```bash
 # One-time setup (vast.ai Docker instance with TensorRT-LLM)
-bash setup_fp4_vast.sh --hf-token hf_YOUR_TOKEN_HERE
+# bash setup_fp4_vast.sh --hf-token hf_YOUR_TOKEN_HERE
+bash setup_fp4_vast.sh --skip-hf-login
 
 # Download STU dataset and setup venv for STU dataset
 bash setup_stu_dataset.sh
