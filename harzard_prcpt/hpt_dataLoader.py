@@ -73,8 +73,8 @@ class HarzardPerceptionTestDataLoader(CosmosInferenceDataloader):
                             break
                         frames.append(frame)
 
-                    window_duration_sec = 5
-                    stride_sec = 2
+                    window_duration_sec = 1.5
+                    stride_sec = 0.75
                     window_size = int(window_duration_sec * fps)
                     stride_size = int(stride_sec * fps)
                     for start_frame in range(0, total_frames - window_size + 1, stride_size):
@@ -84,6 +84,7 @@ class HarzardPerceptionTestDataLoader(CosmosInferenceDataloader):
                         # Determine if this window contains a hazard
                         # hazard end frame has to be to the right of start frame
                         # and hazard start frame has to be to the left of end frame
+                        self.min_hazard_frames = 1 *fps  # hazard for at least 1 sec # TODO update func
                         if (start_frame <= (hazard_end_frame - self.min_hazard_frames)) and (end_frame >= (hazard_start_frame + self.min_hazard_frames)):
                             label = True
                         else:
