@@ -77,6 +77,20 @@ av>=10.0.0
 # bitsandbytes for INT8/INT4 quantization (used by fp8_inference.py)
 bitsandbytes>=0.45.0
 
+# optimum-quanto for true FP8 E4M3 weight quantization (used by fp8_quanto_inference.py)
+optimum-quanto>=0.2.6
+
+# llm-compressor for FP8 W8A8 quantization (used by fp8_vllm_inference.py)
+# NOTE: llmcompressor and vllm conflict with tensorrt-llm pinned deps.
+#       Install in a separate venv or after TRT-LLM work is done.
+llmcompressor>=0.10.0
+
+# compressed-tensors for FP8 checkpoint saving (used by fp8_vllm_inference.py)
+compressed-tensors>=0.14.0
+
+# vLLM for optimized inference with FP8 GEMM kernels (used by fp8_vllm_inference.py)
+vllm>=0.16.0
+
 # =============================================================================
 # 3D Point Cloud (STU Dataset)
 # =============================================================================

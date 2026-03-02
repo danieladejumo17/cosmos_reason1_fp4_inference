@@ -55,6 +55,7 @@ class HarzardPerceptionTestDataLoader(CosmosInferenceDataloader):
                 # print(f"[HPT_DL] FPS for {video_path}: {fps}")
                 total_frames = int(cap.get(cv2.CAP_PROP_FRAME_COUNT))
                 duration_sec = total_frames / fps
+                print(f"Video FPS: {fps}")
 
                 if video_path.stem in self.labels_dict:
                     start_sec, end_sec = self.labels_dict[video_path.stem]
@@ -84,6 +85,7 @@ class HarzardPerceptionTestDataLoader(CosmosInferenceDataloader):
                         # Determine if this window contains a hazard
                         # hazard end frame has to be to the right of start frame
                         # and hazard start frame has to be to the left of end frame
+                        self.min_hazard_frames = 10 # *fps  # hazard for at least 1 sec # TODO update func
                         if (start_frame <= (hazard_end_frame - self.min_hazard_frames)) and (end_frame >= (hazard_start_frame + self.min_hazard_frames)):
                             label = True
                         else:

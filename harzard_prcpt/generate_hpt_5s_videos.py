@@ -15,14 +15,14 @@ def main():
     SCRIPT_DIR = Path(__file__).resolve().parent
 
     # make the output videos dir
-    out_video_folder = SCRIPT_DIR/"data/hpt_5s_videos"
+    out_video_folder = SCRIPT_DIR/"data/hpt_1.5s_videos"
     out_video_folder.mkdir(exist_ok=True, parents=True)
 
     # Create the Dataloader object
     dl = HarzardPerceptionTestDataLoader(
-            SCRIPT_DIR/"data/videos_subsample", SCRIPT_DIR/"data/labels.csv",
+            SCRIPT_DIR/"data/videos", SCRIPT_DIR/"data/labels.csv",
             min_hazard_frames=10,
-            out_video_folder=SCRIPT_DIR/"data/hpt_5s_videos",
+            out_video_folder=SCRIPT_DIR/"data/hpt_1.5s_videos",
             separate_videos=True,
         )
 
