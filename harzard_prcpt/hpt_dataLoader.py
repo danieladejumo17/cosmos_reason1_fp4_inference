@@ -55,6 +55,7 @@ class HarzardPerceptionTestDataLoader(CosmosInferenceDataloader):
                 # print(f"[HPT_DL] FPS for {video_path}: {fps}")
                 total_frames = int(cap.get(cv2.CAP_PROP_FRAME_COUNT))
                 duration_sec = total_frames / fps
+                print(f"Video FPS: {fps}")
 
                 if video_path.stem in self.labels_dict:
                     start_sec, end_sec = self.labels_dict[video_path.stem]

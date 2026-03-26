@@ -25,11 +25,11 @@ def load_model(model_name: str):
     print("🔧 Loading and compiling model... This may take a few seconds.")
     start = time.time()
 
-    bnb_config = transformers.BitsAndBytesConfig(load_in_8bit=True)
+    # bnb_config = transformers.BitsAndBytesConfig(load_in_8bit=True)
     model = transformers.Qwen2_5_VLForConditionalGeneration.from_pretrained(
         model_name,
         dtype=torch.bfloat16,
-        quantization_config=bnb_config,
+        # quantization_config=bnb_config,
         device_map="auto",
     ).eval()
 

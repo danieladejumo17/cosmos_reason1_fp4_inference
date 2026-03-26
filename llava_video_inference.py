@@ -6,62 +6,88 @@ import time
 import warnings
 from pathlib import Path
 
-import torch
-import transformers
-import qwen_vl_utils
+import av
 import cv2
+import numpy as np
+import torch
+from transformers import (
+    AutoImageProcessor,
+    AutoTokenizer,
+    LlavaNextVideoForConditionalGeneration,
+    LlavaNextVideoProcessor,
+    LlavaNextVideoVideoProcessor,
+)
 
 from metrics import Metrics
 
 warnings.filterwarnings("ignore", category=UserWarning)
 
-import os
-os.environ['FORCE_QWENVL_VIDEO_READER'] = 'decord'
 
 # ============================================================
 # 1. Model Loader
 # ============================================================
 def load_model(model_name: str):
-    print("🔧 Loading and compiling model... This may take a few seconds.")
+    print("Loading LLaVA-Video model... This may take a few minutes.")
     start = time.time()
 
-    bnb_config = transformers.BitsAndBytesConfig(load_in_8bit=True)
-    model = transformers.Qwen2_5_VLForConditionalGeneration.from_pretrained(
+    model = LlavaNextVideoForConditionalGeneration.from_pretrained(
         model_name,
-        dtype=torch.bfloat16,
-        quantization_config=bnb_config,
+        torch_dtype=torch.float16,
+        low_cpu_mem_usage=True,
         device_map="auto",
     ).eval()
 
-    processor = transformers.AutoProcessor.from_pretrained(model_name)
-    model.gradient_checkpointing_disable()
-    torch.set_float32_matmul_precision("high")
-    model = torch.compile(model)
+    from transformers import LlavaNextVideoConfig
+    model_config = LlavaNextVideoConfig.from_pretrained(model_name)
+    patch_size = model_config.vision_config.patch_size
+    video_size = model_config.vision_config.image_size
+    vision_feature_select_strategy = getattr(model_config, "vision_feature_select_strategy", "default")
 
-    print(f"✅ Model ready in {time.time() - start:.2f}s\n")
+    tokenizer = AutoTokenizer.from_pretrained(model_name)
+    image_processor = AutoImageProcessor.from_pretrained(model_name)
+    video_processor = LlavaNextVideoVideoProcessor(
+        size={"shortest_edge": video_size},
+        crop_size={"height": video_size, "width": video_size},
+    )
+
+    processor = LlavaNextVideoProcessor(
+        video_processor=video_processor,
+        image_processor=image_processor,
+        tokenizer=tokenizer,
+        patch_size=patch_size,
+        vision_feature_select_strategy=vision_feature_select_strategy,
+    )
+
+    try:
+        import json as _json
+        from huggingface_hub import hf_hub_download
+        chat_tpl_path = hf_hub_download(model_name, "chat_template.json")
+        with open(chat_tpl_path) as f:
+            chat_tpl = _json.load(f)["chat_template"]
+        processor.chat_template = chat_tpl
+    except Exception:
+        pass
+
+    torch.set_float32_matmul_precision("high")
+
+    print(f"Model ready in {time.time() - start:.2f}s\n")
     return model, processor
 
 
 # ============================================================
-# 2. Prompt Caching
+# 2. Prompt Builder (identical to Cosmos pipeline)
 # ============================================================
-def build_cached_prompt(processor):
+def build_prompt():
     base_text = (
-        "You are an autonomous driving safety expert analyzing this video for EXTERNAL ANOMALIES that may impact safe AV operation.\n\n"
-        "<think>\n"
+        "You are an autonomous driving safety expert analyzing this video for EXTERNAL ANOMALIES that may impact safe AV operation:\n\n"
         "- Obstacles, pedestrians, or vehicles violating rules\n"
         "- Roadwork, blocked lanes, poor visibility, or hazards\n"
         "- Reflections, shadows, or false visual cues confusing perception\n"
-        "</think>\n\n"
-        "<answer>\n"
-        "Is there any external anomaly in this video? Reply with exactly one word of the following:\n"
-        "Classification: Anomaly — if any obstacle, obstruction, or unsafe condition is visible.\n" # TODO
-        "Classification: Normal — if no anomaly or obstruction is visible.\n" # TODO
-        "</answer>"
+
+        "Describe what you see in this dashcam video. Is there any external anomaly in this video? Reply with:\n"
+        "Classification: Anomaly (if any obstacle, obstruction, or unsafe condition is visible.)\n"
+        "Classification: Normal (if no anomaly or obstruction is visible.)\n"
     )
-    # TODO
-    conversation_template = [{"role": "user", "content": [{"type": "text", "text": base_text}]}]
-    _ = processor.apply_chat_template(conversation_template, tokenize=False, add_generation_prompt=True)
     return base_text
 
 
@@ -69,22 +95,27 @@ def build_cached_prompt(processor):
 # 3. Warmup
 # ============================================================
 def warmup_model(model, processor):
-    print("🔥 Warming up model (compiling kernels)...")
+    print("Warming up model...")
     dummy_conv = [{"role": "user", "content": [{"type": "text", "text": "Is this scene safe?"}]}]
     text = processor.apply_chat_template(dummy_conv, tokenize=False, add_generation_prompt=True)
-    inputs = processor(text=[text], return_tensors="pt").to(model.device)
+    inputs = processor(text=text, return_tensors="pt").to(model.device)
     with torch.inference_mode():
         _ = model.generate(**inputs, max_new_tokens=7)
     torch.cuda.synchronize()
-    print("✅ Warmup complete.\n")
+    print("Warmup complete.\n")
 
 
 # ============================================================
-# 4. Result Parsing
+# 4. Result Parsing (identical to Cosmos pipeline)
 # ============================================================
 def parse_result(raw_output: str) -> str:
+    print(raw_output)
     out = raw_output.lower()
-    if "classification: an" in out:
+    if "classification: an" in out or "classification: anomaly" in out:
+        return "Anomaly"
+    elif "classification: normal" in out:
+        return "Normal"
+    elif "anomaly" in out:
         return "Anomaly"
     elif "normal" in out:
         return "Normal"
@@ -92,52 +123,69 @@ def parse_result(raw_output: str) -> str:
 
 
 # ============================================================
-# 5. Video Prefetch (Now Just Decoder — Sequential)
+# 5. Video Frame Extraction via PyAV
 # ============================================================
+def read_video_pyav(container, indices):
+    """Decode specific frame indices from a PyAV container."""
+    frames = []
+    container.seek(0)
+    start_index = indices[0]
+    end_index = indices[-1]
+    for i, frame in enumerate(container.decode(video=0)):
+        if i > end_index:
+            break
+        if i >= start_index and i in indices:
+            frames.append(frame)
+    return np.stack([x.to_ndarray(format="rgb24") for x in frames])
+
+
 def load_video(video_path: Path, target_fps: int, target_resolution: tuple[int, int]):
     """
-    Sequential (non-prefetch) version of video decoding.
+    Load video and sample frames at target_fps, matching the Cosmos pipeline's
+    frame sampling strategy (effective_fps * duration frames, uniformly sampled).
     """
-    try:
-        cap = cv2.VideoCapture(str(video_path))
-        if not cap.isOpened():
-            raise IOError(f"Cannot open video file: {video_path}")
+    cap = cv2.VideoCapture(str(video_path))
+    if not cap.isOpened():
+        raise IOError(f"Cannot open video file: {video_path}")
+    native_fps = cap.get(cv2.CAP_PROP_FPS)
+    frame_count = int(cap.get(cv2.CAP_PROP_FRAME_COUNT))
+    cap.release()
 
-        native_fps = cap.get(cv2.CAP_PROP_FPS)
-        frame_count = int(cap.get(cv2.CAP_PROP_FRAME_COUNT))
+    effective_fps = min(target_fps, native_fps) if native_fps > 0 else target_fps
+    duration_seconds = frame_count / native_fps if native_fps > 0 else 0
+    num_frames_to_sample = max(1, int(duration_seconds * effective_fps))
 
-        effective_fps = min(target_fps, native_fps) if native_fps > 0 else target_fps
-        duration_seconds = frame_count / native_fps if native_fps > 0 else 0
-        num_frames_to_sample = max(1, int(duration_seconds * effective_fps))
+    container = av.open(str(video_path))
+    total_frames = container.streams.video[0].frames
+    if total_frames <= 0:
+        total_frames = frame_count
 
-        total_pixels = num_frames_to_sample * target_resolution[0] * target_resolution[1]
-    finally:
-        if 'cap' in locals() and cap.isOpened():
-            cap.release()
+    indices = np.arange(0, total_frames, max(1, total_frames / num_frames_to_sample)).astype(int)
+    indices = indices[:num_frames_to_sample]
 
-    image_inputs, video_inputs = qwen_vl_utils.process_vision_info(
-        [{"role": "user", "content": [{"type": "video", "video": str(video_path), "total_pixels": total_pixels}]}]
-    )
-    return image_inputs, video_inputs
+    clip = read_video_pyav(container, indices)
+    container.close()
+    return clip
 
 
 # ============================================================
 # 6. Video Analysis
 # ============================================================
-def analyze_video(model, processor, video_path: Path, prefetched_data, max_tokens: int, base_text: str):
-    image_inputs, video_inputs = prefetched_data
-
-    content = [
-        {"type": "video", "video": str(video_path)},
-        {"type": "text", "text": base_text},
+def analyze_video(model, processor, clip, max_tokens: int, base_text: str):
+    conversation = [
+        {
+            "role": "user",
+            "content": [
+                {"type": "text", "text": base_text},
+                {"type": "video"},
+            ],
+        },
     ]
-    conversation = [{"role": "user", "content": content}]
 
-    text = processor.apply_chat_template(conversation, tokenize=False, add_generation_prompt=True)
+    prompt = processor.apply_chat_template(conversation, tokenize=False, add_generation_prompt=True)
     inputs = processor(
-        text=[text],
-        images=image_inputs,
-        videos=video_inputs,
+        text=prompt,
+        videos=clip,
         padding=True,
         return_tensors="pt",
     ).to(model.device)
@@ -150,17 +198,17 @@ def analyze_video(model, processor, video_path: Path, prefetched_data, max_token
 
 
 # ============================================================
-# 7. Main — Sequential Video Processing
+# 7. Main
 # ============================================================
 def main():
-    parser = argparse.ArgumentParser(description="INT8 Inference with bitsandbytes")
+    parser = argparse.ArgumentParser(description="LLaVA-NeXT-Video-7B Inference for Hazard Perception")
     parser.add_argument("--video_dir", type=str, required=True)
-    parser.add_argument("--model", type=str, default="nvidia/Cosmos-Reason1-7B")
+    parser.add_argument("--model", type=str, default="llava-hf/LLaVA-NeXT-Video-7B-hf")
     parser.add_argument("--fps", type=int, default=4)
-    parser.add_argument("--max_tokens", type=int, default=3)  ## TODO 
+    parser.add_argument("--max_tokens", type=int, default=150)
     parser.add_argument("--target_resolution", type=str, default="250x250")
     parser.add_argument("--output_json", type=str, default=None,
-                        help="Path to save JSON results (default: <video_dir>/fp8_results.json)")
+                        help="Path to save JSON results (default: <video_dir>/llava_video_results.json)")
     args = parser.parse_args()
 
     width, height = map(int, args.target_resolution.split('x'))
@@ -172,23 +220,20 @@ def main():
         print("No video files found.")
         return
 
-    # Determine output JSON path
     if args.output_json:
         output_json_path = Path(args.output_json)
     else:
-        output_json_path = video_dir / "fp8_results.json"
+        output_json_path = video_dir / "llava_video_results.json"
 
     model, processor = load_model(args.model)
     warmup_model(model, processor)
-    base_text = build_cached_prompt(processor)
+    base_text = build_prompt()
 
-    # Get GPU info
     gpu_name = torch.cuda.get_device_name(0) if torch.cuda.is_available() else "Unknown"
     compute_cap = torch.cuda.get_device_capability(0) if torch.cuda.is_available() else (0, 0)
 
-    print(f"📂 Found {len(video_files)} videos — running INT8 inference (bitsandbytes)\n" + "=" * 50)
+    print(f"Found {len(video_files)} videos — running LLaVA-Video FP16 inference\n" + "=" * 60)
 
-    # Track results
     results = []
     total_load_time = 0.0
     total_inference_time = 0.0
@@ -200,22 +245,21 @@ def main():
     for i, video_path in enumerate(video_files, 1):
         fname = video_path.stem
         if fname.startswith("Anom"):
-            true_label = 1  # Anomaly
+            true_label = 1
         elif fname.startswith("Norm"):
-            true_label = 0  # Normal
+            true_label = 0
         else:
             true_label = None
 
         load_start = time.time()
         try:
-            prefetched_data = load_video(video_path, args.fps, target_resolution)
+            clip = load_video(video_path, args.fps, target_resolution)
             load_time = time.time() - load_start
             total_load_time += load_time
 
             analysis_start = time.time()
-            raw = analyze_video(model, processor, video_path, prefetched_data, args.max_tokens, base_text)
+            raw = analyze_video(model, processor, clip, args.max_tokens, base_text)
             inference_time = time.time() - analysis_start
-            print(raw)
             result = parse_result(raw)
             total_inference_time += inference_time
 
@@ -236,7 +280,7 @@ def main():
 
             print(
                 f"[{i}/{len(video_files)}] {video_path.name}: {result} "
-                f"(Load: {load_time:.2f}s, INT8 Inference: {inference_time:.2f}s)"
+                f"(Load: {load_time:.2f}s, LLaVA Inference: {inference_time:.2f}s)"
             )
 
         except Exception as e:
@@ -252,16 +296,15 @@ def main():
 
     total_time = time.time() - batch_start_time
 
-    # Build output JSON
     output_data = {
         "config": {
             "model": args.model,
-            "inference_mode": "bitsandbytes INT8",
+            "inference_mode": "LLaVA-Video FP16",
             "fps": args.fps,
             "max_tokens": args.max_tokens,
             "target_resolution": args.target_resolution,
-            "quantization": "INT8 (bitsandbytes load_in_8bit)",
-            "compute_type": "INT8 matrix multiplication",
+            "quantization": "None (FP16)",
+            "compute_type": "FP16",
             "gpu": gpu_name,
             "compute_capability": f"{compute_cap[0]}.{compute_cap[1]}",
         },
@@ -280,27 +323,28 @@ def main():
         "results": results,
     }
 
-    # Save JSON
     with open(output_json_path, "w") as f:
         json.dump(output_data, f, indent=2)
 
-    # Print summary
-    print("=" * 50)
-    print("\nSUMMARY — INT8 Inference (bitsandbytes)")
-    print("=" * 50)
+    print("=" * 60)
+    print("\nSUMMARY — LLaVA-Video FP16 Inference")
+    print("=" * 60)
+    print(f"Model:        {args.model}")
+    print(f"GPU:          {gpu_name}")
     print(f"Total videos: {len(video_files)}")
-    print(f"  - Anomaly: {counts['Anomaly']}")
-    print(f"  - Normal: {counts['Normal']}")
-    print(f"  - Unknown: {counts['Unknown']}")
-    print(f"  - Errors: {counts['Error']}")
-    print(f"\nTotal load time: {total_load_time:.2f}s")
-    print(f"Total INT8 inference time: {total_inference_time:.2f}s")
-    print(f"Average INT8 inference time: {total_inference_time / len(video_files):.2f}s per video")
+    print(f"  - Anomaly:  {counts['Anomaly']}")
+    print(f"  - Normal:   {counts['Normal']}")
+    print(f"  - Unknown:  {counts['Unknown']}")
+    print(f"  - Errors:   {counts['Error']}")
+    print(f"\nTotal load time:               {total_load_time:.2f}s")
+    print(f"Total LLaVA inference time:    {total_inference_time:.2f}s")
+    print(f"Average LLaVA inference time:  {total_inference_time / len(video_files):.2f}s per video")
+    print(f"Total wall-clock time:         {total_time:.2f}s")
 
     if metrics.count > 0:
         m = metrics.compute()
         print(f"\nCLASSIFICATION METRICS")
-        print("=" * 50)
+        print("=" * 60)
         print(f"  TP: {m['TP']}  TN: {m['TN']}  FP: {m['FP']}  FN: {m['FN']}")
         print(f"  Accuracy:  {m['Accuracy']:.4f}")
         print(f"  Precision: {m['Precision']:.4f}")
@@ -309,7 +353,7 @@ def main():
         print(f"  Avg Inference Time: {m['Avg Inference Time']:.3f}s")
 
     print(f"\nResults saved to: {output_json_path}")
-    print("✅ INT8 inference complete.")
+    print("LLaVA-Video inference complete.")
 
 
 if __name__ == "__main__":

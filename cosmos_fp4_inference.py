@@ -104,21 +104,17 @@ def load_video_frames(video_path: Path, target_fps: int, target_resolution: tupl
 
 
 def get_analysis_prompt():
-    """Safety analysis prompt for Cosmos-Reason1 (reasoning-enhanced)."""
     return (
-        "Analyze this driving video for external anomalies that may impact "
-        "safe autonomous vehicle operation.\n\n"
-        "Look carefully for:\n"
-        "- Obstacles, pedestrians, or vehicles violating traffic rules\n"
-        "- Roadwork, blocked lanes, poor visibility, or road hazards\n"
-        "- Any unusual or unsafe condition\n\n"
+        "You are an autonomous driving safety expert analyzing this video for EXTERNAL ANOMALIES that may impact safe AV operation.\n\n"
         "<think>\n"
-        "Describe what you observe in the video step by step.\n"
+        "- Obstacles, pedestrians, or vehicles violating rules\n"
+        "- Roadwork, blocked lanes, poor visibility, or hazards\n"
+        "- Reflections, shadows, or false visual cues confusing perception\n"
         "</think>\n\n"
         "<answer>\n"
-        "Based on your analysis, classify this video with exactly one of:\n"
-        "Classification: Anomaly\n"
-        "Classification: Normal\n"
+        "Is there any external anomaly in this video? Reply with exactly one word of the following:\n"
+        "Classification: Anomaly — if any obstacle, obstruction, or unsafe condition is visible.\n"
+        "Classification: Normal — if no anomaly or obstruction is visible.\n"
         "</answer>"
     )
 
@@ -175,48 +171,11 @@ def analyze_video(llm, processor, video_path: Path, prefetched_data: tuple,
 
 
 def parse_result(raw_output: str) -> str:
-    """Parse model output to extract classification from CoT reasoning."""
-    import re
     out = raw_output.lower()
-
-    # Strategy 1: find the last "classification: X" or "classification is X" marker
-    matches = list(re.finditer(
-        r'classification[:\s]+(?:is\s+)?["\']?(anomaly|normal)', out
-    ))
-    if matches:
-        return "Anomaly" if matches[-1].group(1) == "anomaly" else "Normal"
-
-    # Strategy 2: check text after the last <answer> tag
-    answer_idx = out.rfind("<answer>")
-    if answer_idx != -1:
-        answer_text = out[answer_idx:]
-        if re.search(r'\banomal(?:y|ies)\b', answer_text):
-            return "Anomaly"
-        if "normal" in answer_text:
-            return "Normal"
-
-    # Strategy 3: check the last meaningful line (skip closing tags)
-    lines = [l.strip() for l in out.strip().split("\n")
-             if l.strip() and not l.strip().startswith("</")]
-    if lines:
-        last_line = lines[-1]
-        has_anomaly = bool(re.search(r'\banomal(?:y|ies)\b', last_line))
-        negated = bool(re.search(r'\b(?:no|not|without)\b.*\banomal', last_line))
-        if has_anomaly and not negated:
-            return "Anomaly"
-        if "normal" in last_line or (has_anomaly and negated):
-            return "Normal"
-
-    # Strategy 4: negated anomaly mentions → Normal
-    if re.search(r'\b(?:no|not|without|doesn.t|don.t|aren.t)\b.*\banomal(?:y|ies)\b', out):
-        return "Normal"
-
-    # Strategy 5: non-negated anomaly or "normal" anywhere
-    if re.search(r'\banomal(?:y|ies)\b', out):
+    if "classification: an" in out:
         return "Anomaly"
-    if "normal" in out:
+    elif "normal" in out:
         return "Normal"
-
     return "Unknown"
 
 
@@ -232,8 +191,8 @@ def main():
                         help=f"Original model for processor (default: {SOURCE_MODEL})")
     parser.add_argument("--fps", type=int, default=4,
                         help="Target FPS for video sampling (default: 4)")
-    parser.add_argument("--max_tokens", type=int, default=64,
-                        help="Max new tokens to generate (default: 64)")
+    parser.add_argument("--max_tokens", type=int, default=3,
+                        help="Max new tokens to generate (default: 3)")
     parser.add_argument("--target_resolution", type=str, default="250x250",
                         help="Target resolution WxH (default: 250x250)")
     parser.add_argument("--output_file", type=str, default=None,

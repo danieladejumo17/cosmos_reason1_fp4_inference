@@ -1,4 +1,13 @@
 #!/usr/bin/env python3
+"""
+True FP8 (E4M3) inference using optimum-quanto.
+
+Quantizes model weights to float8 E4M3 format via QuantoConfig.
+Unlike fp8_inference.py (which uses bitsandbytes INT8 / LLM.int8()),
+this performs actual FP8 weight quantization.
+
+Requires: pip install optimum-quanto
+"""
 
 import argparse
 import json
@@ -16,29 +25,34 @@ from metrics import Metrics
 warnings.filterwarnings("ignore", category=UserWarning)
 
 import os
-os.environ['FORCE_QWENVL_VIDEO_READER'] = 'decord'
+os.environ['FORCE_QWENVL_VIDEO_READER'] = 'torchvision'
+
 
 # ============================================================
-# 1. Model Loader
+# 1. Model Loader — FP8 E4M3 via optimum-quanto
 # ============================================================
-def load_model(model_name: str):
-    print("🔧 Loading and compiling model... This may take a few seconds.")
+def load_model(model_name: str, compile_model: bool = False):
+    print("Loading model with FP8 (E4M3) quantization via quanto...")
     start = time.time()
 
-    bnb_config = transformers.BitsAndBytesConfig(load_in_8bit=True)
+    quant_config = transformers.QuantoConfig(weights="float8")
+
     model = transformers.Qwen2_5_VLForConditionalGeneration.from_pretrained(
         model_name,
-        dtype=torch.bfloat16,
-        quantization_config=bnb_config,
+        torch_dtype=torch.bfloat16,
+        quantization_config=quant_config,
         device_map="auto",
     ).eval()
 
     processor = transformers.AutoProcessor.from_pretrained(model_name)
     model.gradient_checkpointing_disable()
     torch.set_float32_matmul_precision("high")
-    model = torch.compile(model)
 
-    print(f"✅ Model ready in {time.time() - start:.2f}s\n")
+    if compile_model:
+        print("Compiling model with torch.compile...")
+        model = torch.compile(model)
+
+    print(f"Model ready in {time.time() - start:.2f}s\n")
     return model, processor
 
 
@@ -55,11 +69,10 @@ def build_cached_prompt(processor):
         "</think>\n\n"
         "<answer>\n"
         "Is there any external anomaly in this video? Reply with exactly one word of the following:\n"
-        "Classification: Anomaly — if any obstacle, obstruction, or unsafe condition is visible.\n" # TODO
-        "Classification: Normal — if no anomaly or obstruction is visible.\n" # TODO
+        "Classification: Anomaly — if any obstacle, obstruction, or unsafe condition is visible.\n"
+        "Classification: Normal — if no anomaly or obstruction is visible.\n"
         "</answer>"
     )
-    # TODO
     conversation_template = [{"role": "user", "content": [{"type": "text", "text": base_text}]}]
     _ = processor.apply_chat_template(conversation_template, tokenize=False, add_generation_prompt=True)
     return base_text
@@ -69,14 +82,14 @@ def build_cached_prompt(processor):
 # 3. Warmup
 # ============================================================
 def warmup_model(model, processor):
-    print("🔥 Warming up model (compiling kernels)...")
+    print("Warming up model (compiling kernels)...")
     dummy_conv = [{"role": "user", "content": [{"type": "text", "text": "Is this scene safe?"}]}]
     text = processor.apply_chat_template(dummy_conv, tokenize=False, add_generation_prompt=True)
     inputs = processor(text=[text], return_tensors="pt").to(model.device)
     with torch.inference_mode():
         _ = model.generate(**inputs, max_new_tokens=7)
     torch.cuda.synchronize()
-    print("✅ Warmup complete.\n")
+    print("Warmup complete.\n")
 
 
 # ============================================================
@@ -84,7 +97,7 @@ def warmup_model(model, processor):
 # ============================================================
 def parse_result(raw_output: str) -> str:
     out = raw_output.lower()
-    if "classification: an" in out:
+    if "anomaly" in out:
         return "Anomaly"
     elif "normal" in out:
         return "Normal"
@@ -92,12 +105,9 @@ def parse_result(raw_output: str) -> str:
 
 
 # ============================================================
-# 5. Video Prefetch (Now Just Decoder — Sequential)
+# 5. Video Loading
 # ============================================================
 def load_video(video_path: Path, target_fps: int, target_resolution: tuple[int, int]):
-    """
-    Sequential (non-prefetch) version of video decoding.
-    """
     try:
         cap = cv2.VideoCapture(str(video_path))
         if not cap.isOpened():
@@ -150,17 +160,18 @@ def analyze_video(model, processor, video_path: Path, prefetched_data, max_token
 
 
 # ============================================================
-# 7. Main — Sequential Video Processing
+# 7. Main
 # ============================================================
 def main():
-    parser = argparse.ArgumentParser(description="INT8 Inference with bitsandbytes")
+    parser = argparse.ArgumentParser(description="FP8 (E4M3) Inference via optimum-quanto")
     parser.add_argument("--video_dir", type=str, required=True)
     parser.add_argument("--model", type=str, default="nvidia/Cosmos-Reason1-7B")
     parser.add_argument("--fps", type=int, default=4)
-    parser.add_argument("--max_tokens", type=int, default=3)  ## TODO 
+    parser.add_argument("--max_tokens", type=int, default=7)
     parser.add_argument("--target_resolution", type=str, default="250x250")
+    parser.add_argument("--compile", action="store_true", help="Apply torch.compile (may be slower on first run)")
     parser.add_argument("--output_json", type=str, default=None,
-                        help="Path to save JSON results (default: <video_dir>/fp8_results.json)")
+                        help="Path to save JSON results (default: <video_dir>/fp8_quanto_results.json)")
     args = parser.parse_args()
 
     width, height = map(int, args.target_resolution.split('x'))
@@ -172,23 +183,20 @@ def main():
         print("No video files found.")
         return
 
-    # Determine output JSON path
     if args.output_json:
         output_json_path = Path(args.output_json)
     else:
-        output_json_path = video_dir / "fp8_results.json"
+        output_json_path = video_dir / "fp8_quanto_results.json"
 
-    model, processor = load_model(args.model)
+    model, processor = load_model(args.model, compile_model=args.compile)
     warmup_model(model, processor)
     base_text = build_cached_prompt(processor)
 
-    # Get GPU info
     gpu_name = torch.cuda.get_device_name(0) if torch.cuda.is_available() else "Unknown"
     compute_cap = torch.cuda.get_device_capability(0) if torch.cuda.is_available() else (0, 0)
 
-    print(f"📂 Found {len(video_files)} videos — running INT8 inference (bitsandbytes)\n" + "=" * 50)
+    print(f"Found {len(video_files)} videos — running FP8 (E4M3) inference via quanto\n" + "=" * 50)
 
-    # Track results
     results = []
     total_load_time = 0.0
     total_inference_time = 0.0
@@ -200,9 +208,9 @@ def main():
     for i, video_path in enumerate(video_files, 1):
         fname = video_path.stem
         if fname.startswith("Anom"):
-            true_label = 1  # Anomaly
+            true_label = 1
         elif fname.startswith("Norm"):
-            true_label = 0  # Normal
+            true_label = 0
         else:
             true_label = None
 
@@ -215,7 +223,6 @@ def main():
             analysis_start = time.time()
             raw = analyze_video(model, processor, video_path, prefetched_data, args.max_tokens, base_text)
             inference_time = time.time() - analysis_start
-            print(raw)
             result = parse_result(raw)
             total_inference_time += inference_time
 
@@ -236,7 +243,7 @@ def main():
 
             print(
                 f"[{i}/{len(video_files)}] {video_path.name}: {result} "
-                f"(Load: {load_time:.2f}s, INT8 Inference: {inference_time:.2f}s)"
+                f"(Load: {load_time:.2f}s, FP8 Inference: {inference_time:.2f}s)"
             )
 
         except Exception as e:
@@ -252,16 +259,16 @@ def main():
 
     total_time = time.time() - batch_start_time
 
-    # Build output JSON
     output_data = {
         "config": {
             "model": args.model,
-            "inference_mode": "bitsandbytes INT8",
+            "inference_mode": "FP8 E4M3 (optimum-quanto)",
             "fps": args.fps,
             "max_tokens": args.max_tokens,
             "target_resolution": args.target_resolution,
-            "quantization": "INT8 (bitsandbytes load_in_8bit)",
-            "compute_type": "INT8 matrix multiplication",
+            "quantization": "FP8 E4M3 (quanto QuantoConfig weights='float8')",
+            "compute_type": "FP8 weight quantization, bfloat16 compute",
+            "torch_compile": args.compile,
             "gpu": gpu_name,
             "compute_capability": f"{compute_cap[0]}.{compute_cap[1]}",
         },
@@ -280,13 +287,11 @@ def main():
         "results": results,
     }
 
-    # Save JSON
     with open(output_json_path, "w") as f:
         json.dump(output_data, f, indent=2)
 
-    # Print summary
     print("=" * 50)
-    print("\nSUMMARY — INT8 Inference (bitsandbytes)")
+    print("\nSUMMARY — FP8 (E4M3) Inference via optimum-quanto")
     print("=" * 50)
     print(f"Total videos: {len(video_files)}")
     print(f"  - Anomaly: {counts['Anomaly']}")
@@ -294,8 +299,8 @@ def main():
     print(f"  - Unknown: {counts['Unknown']}")
     print(f"  - Errors: {counts['Error']}")
     print(f"\nTotal load time: {total_load_time:.2f}s")
-    print(f"Total INT8 inference time: {total_inference_time:.2f}s")
-    print(f"Average INT8 inference time: {total_inference_time / len(video_files):.2f}s per video")
+    print(f"Total FP8 inference time: {total_inference_time:.2f}s")
+    print(f"Average FP8 inference time: {total_inference_time / len(video_files):.2f}s per video")
 
     if metrics.count > 0:
         m = metrics.compute()
@@ -309,7 +314,7 @@ def main():
         print(f"  Avg Inference Time: {m['Avg Inference Time']:.3f}s")
 
     print(f"\nResults saved to: {output_json_path}")
-    print("✅ INT8 inference complete.")
+    print("FP8 inference complete.")
 
 
 if __name__ == "__main__":

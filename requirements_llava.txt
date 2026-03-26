@@ -1,0 +1,31 @@
+# Requirements for LLaVA-NeXT-Video-7B Inference
+#
+# Model: llava-hf/LLaVA-NeXT-Video-7B-hf
+# Task:  Hazard perception anomaly detection (comparison baseline for Cosmos-Reason1-7B)
+#
+# Install:
+#   pip install -r requirements_llava.txt
+
+# PyTorch
+torch>=2.1.0
+torchvision>=0.16.0
+
+# Transformers (LlavaNextVideoForConditionalGeneration support)
+transformers>=4.45.0
+accelerate>=0.26.0
+safetensors>=0.4.3
+
+# Video decoding (PyAV — used by LLaVA-Video frame extraction)
+av>=10.0.0
+
+# Video I/O fallback
+opencv-python-headless>=4.8.0
+
+# Image / array utilities
+numpy<2
+pillow>=10.0.0
+
+# Metrics dependencies (used by metrics.py)
+scikit-learn
+matplotlib
+seaborn
