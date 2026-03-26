@@ -74,8 +74,8 @@ class HarzardPerceptionTestDataLoader(CosmosInferenceDataloader):
                             break
                         frames.append(frame)
 
-                    window_duration_sec = 1.5
-                    stride_sec = 0.75
+                    window_duration_sec = 5
+                    stride_sec = 2
                     window_size = int(window_duration_sec * fps)
                     stride_size = int(stride_sec * fps)
                     for start_frame in range(0, total_frames - window_size + 1, stride_size):
