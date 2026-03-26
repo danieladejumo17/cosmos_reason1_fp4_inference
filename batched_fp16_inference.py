@@ -38,7 +38,7 @@ def load_model(model_name: str):
     torch.set_float32_matmul_precision("high")
     model = torch.compile(model)
 
-    print(f"✅ Model ready in {time.time() - start:.2f}s\n")
+    print(f"Model ready in {time.time() - start:.2f}s\n")
     return model, processor
 
 
@@ -69,14 +69,14 @@ def build_cached_prompt(processor):
 # 3. Warmup
 # ============================================================
 def warmup_model(model, processor, batch_size: int = 1):
-    print(f"🔥 Warming up model (compiling kernels, batch_size={batch_size})...")
+    print(f"Warming up model (compiling kernels, batch_size={batch_size})...")
     dummy_conv = [{"role": "user", "content": [{"type": "text", "text": "Is this scene safe?"}]}]
     text = processor.apply_chat_template(dummy_conv, tokenize=False, add_generation_prompt=True)
     inputs = processor(text=[text] * batch_size, padding=True, return_tensors="pt").to(model.device)
     with torch.inference_mode():
         _ = model.generate(**inputs, max_new_tokens=7)
     torch.cuda.synchronize()
-    print("✅ Warmup complete.\n")
+    print("Warmup complete.\n")
 
 
 # ============================================================
@@ -215,7 +215,7 @@ def main():
     compute_cap = torch.cuda.get_device_capability(0) if torch.cuda.is_available() else (0, 0)
 
     print(
-        f"📂 Found {len(video_files)} videos — running FP16 batched inference "
+        f"Found {len(video_files)} videos — running FP16 batched inference "
         f"(batch_size={args.batch_size})\n" + "=" * 50
     )
 
