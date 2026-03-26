@@ -59,7 +59,7 @@ def build_cached_prompt(processor):
         "Classification: Normal — if no anomaly or obstruction is visible.\n" # TODO
         "</answer>"
     )
-    # TODO
+    # TODO apply_chat_template is unused here
     conversation_template = [{"role": "user", "content": [{"type": "text", "text": base_text}]}]
     _ = processor.apply_chat_template(conversation_template, tokenize=False, add_generation_prompt=True)
     return base_text
@@ -68,11 +68,11 @@ def build_cached_prompt(processor):
 # ============================================================
 # 3. Warmup
 # ============================================================
-def warmup_model(model, processor):
-    print("🔥 Warming up model (compiling kernels)...")
+def warmup_model(model, processor, batch_size: int = 1):
+    print(f"🔥 Warming up model (compiling kernels, batch_size={batch_size})...")
     dummy_conv = [{"role": "user", "content": [{"type": "text", "text": "Is this scene safe?"}]}]
     text = processor.apply_chat_template(dummy_conv, tokenize=False, add_generation_prompt=True)
-    inputs = processor(text=[text], return_tensors="pt").to(model.device)
+    inputs = processor(text=[text] * batch_size, padding=True, return_tensors="pt").to(model.device)
     with torch.inference_mode():
         _ = model.generate(**inputs, max_new_tokens=7)
     torch.cuda.synchronize()
@@ -84,7 +84,7 @@ def warmup_model(model, processor):
 # ============================================================
 def parse_result(raw_output: str) -> str:
     out = raw_output.lower()
-    if "classification: an" in out: # 3 tokens 
+    if "classification: an" in out: # 3 tokens
         return "Anomaly"
     elif "normal" in out: # 1 token
         return "Normal"
@@ -115,6 +115,7 @@ def load_video(video_path: Path, target_fps: int, target_resolution: tuple[int, 
         if 'cap' in locals() and cap.isOpened():
             cap.release()
 
+    # TODO: We should be able to batch this
     image_inputs, video_inputs = qwen_vl_utils.process_vision_info(
         [{"role": "user", "content": [{"type": "video", "video": str(video_path), "total_pixels": total_pixels}]}]
     )
@@ -122,22 +123,38 @@ def load_video(video_path: Path, target_fps: int, target_resolution: tuple[int, 
 
 
 # ============================================================
-# 6. Video Analysis
+# 6. Batched Video Analysis
 # ============================================================
-def analyze_video(model, processor, video_path: Path, prefetched_data, max_tokens: int, base_text: str):
-    image_inputs, video_inputs = prefetched_data
+def analyze_video_batch(
+    model, processor, batch_items: list[tuple[Path, tuple]], max_tokens: int, base_text: str
+) -> list[str]:
+    """
+    Process a batch of videos in a single forward pass.
+    batch_items: list of (video_path, (image_inputs, video_inputs)) tuples.
+    Returns a list of raw output strings, one per video.
+    """
+    texts = []
+    all_image_inputs = []
+    all_video_inputs = []
 
-    content = [
-        {"type": "video", "video": str(video_path)},
-        {"type": "text", "text": base_text},
-    ]
-    conversation = [{"role": "user", "content": content}]
+    for video_path, (image_inputs, video_inputs) in batch_items:
+        content = [
+            {"type": "video", "video": str(video_path)},
+            {"type": "text", "text": base_text},
+        ]
+        conversation = [{"role": "user", "content": content}]
+        text = processor.apply_chat_template(conversation, tokenize=False, add_generation_prompt=True)
+        texts.append(text)
 
-    text = processor.apply_chat_template(conversation, tokenize=False, add_generation_prompt=True)
+        if image_inputs is not None:
+            all_image_inputs.extend(image_inputs)
+        if video_inputs is not None:
+            all_video_inputs.extend(video_inputs)
+
     inputs = processor(
-        text=[text],
-        images=image_inputs,
-        videos=video_inputs,
+        text=texts,
+        images=all_image_inputs or None,
+        videos=all_video_inputs or None,
         padding=True,
         return_tensors="pt",
     ).to(model.device)
@@ -146,21 +163,33 @@ def analyze_video(model, processor, video_path: Path, prefetched_data, max_token
         output = model.generate(**inputs, max_new_tokens=max_tokens, do_sample=False)
 
     new_tokens = output[:, inputs.input_ids.shape[1]:]
-    return processor.batch_decode(new_tokens, skip_special_tokens=True)[0].strip()
+    decoded = processor.batch_decode(new_tokens, skip_special_tokens=True)
+    return [d.strip() for d in decoded]
 
 
 # ============================================================
-# 7. Main — Sequential Video Processing
+# 7. Main — Batched Video Processing
 # ============================================================
+def get_true_label(video_path: Path):
+    fname = video_path.stem
+    if fname.startswith("Anom"):
+        return 1
+    elif fname.startswith("Norm"):
+        return 0
+    return None
+
+
 def main():
-    parser = argparse.ArgumentParser(description="INT8 Inference with bitsandbytes")
+    parser = argparse.ArgumentParser(description="FP16 Batched Inference")
     parser.add_argument("--video_dir", type=str, required=True)
     parser.add_argument("--model", type=str, default="nvidia/Cosmos-Reason1-7B")
     parser.add_argument("--fps", type=int, default=4)
-    parser.add_argument("--max_tokens", type=int, default=3)  ## TODO 
+    parser.add_argument("--max_tokens", type=int, default=3)
+    parser.add_argument("--batch_size", type=int, default=1,
+                        help="Number of videos to process per batch (increase for GPU utilization, decrease if OOM)")
     parser.add_argument("--target_resolution", type=str, default="250x250")
     parser.add_argument("--output_json", type=str, default=None,
-                        help="Path to save JSON results (default: <video_dir>/fp8_results.json)")
+                        help="Path to save JSON results (default: <video_dir>/fp16_batch_results.json)")
     args = parser.parse_args()
 
     width, height = map(int, args.target_resolution.split('x'))
@@ -172,21 +201,23 @@ def main():
         print("No video files found.")
         return
 
-    # Determine output JSON path
     if args.output_json:
         output_json_path = Path(args.output_json)
     else:
-        output_json_path = video_dir / "fp8_results.json"
+        output_json_path = video_dir / "fp16_batch_results.json"
 
     model, processor = load_model(args.model)
-    warmup_model(model, processor)
+    warmup_model(model, processor, batch_size=args.batch_size)
     base_text = build_cached_prompt(processor)
 
     # Get GPU info
     gpu_name = torch.cuda.get_device_name(0) if torch.cuda.is_available() else "Unknown"
     compute_cap = torch.cuda.get_device_capability(0) if torch.cuda.is_available() else (0, 0)
 
-    print(f"📂 Found {len(video_files)} videos — running INT8 inference (bitsandbytes)\n" + "=" * 50)
+    print(
+        f"📂 Found {len(video_files)} videos — running FP16 batched inference "
+        f"(batch_size={args.batch_size})\n" + "=" * 50
+    )
 
     # Track results
     results = []
@@ -194,74 +225,108 @@ def main():
     total_inference_time = 0.0
     counts = {"Anomaly": 0, "Normal": 0, "Unknown": 0, "Error": 0}
     metrics = Metrics()
+    overall_start = time.time()
 
-    batch_start_time = time.time()
+    for batch_start_idx in range(0, len(video_files), args.batch_size):
+        batch_paths = video_files[batch_start_idx : batch_start_idx + args.batch_size]
+        batch_num = batch_start_idx // args.batch_size + 1
+        global_offset = batch_start_idx + 1
 
-    for i, video_path in enumerate(video_files, 1):
-        fname = video_path.stem
-        if fname.startswith("Anom"):
-            true_label = 1  # Anomaly
-        elif fname.startswith("Norm"):
-            true_label = 0  # Normal
-        else:
-            true_label = None
-
+        # --- Load videos for this batch ---
+        batch_items = []
+        batch_load_errors = {}
         load_start = time.time()
+        for vp in batch_paths:
+            try:
+                prefetched = load_video(vp, args.fps, target_resolution)
+                batch_items.append((vp, prefetched))
+            except Exception as e:
+                batch_load_errors[vp] = e
+        batch_load_time = time.time() - load_start
+        total_load_time += batch_load_time
+
+        # Record errors from loading
+        for vp, err in batch_load_errors.items():
+            counts["Error"] += 1
+            results.append({
+                "file": vp.name,
+                "result": "Error",
+                "raw_output": str(err),
+                "true_label": "Unknown",
+                "load_time_s": 0.0,
+                "inference_time_s": 0.0,
+            })
+            print(f"  {vp.name}: LOAD ERROR - {err}")
+
+        if not batch_items:
+            continue
+
+        # --- Run batched inference ---
+        inference_start = time.time()
         try:
-            prefetched_data = load_video(video_path, args.fps, target_resolution)
-            load_time = time.time() - load_start
-            total_load_time += load_time
+            raw_outputs = analyze_video_batch(
+                model, processor, batch_items, args.max_tokens, base_text
+            )
+        except Exception as e:
+            # If the whole batch fails, record errors for all items
+            for vp, _ in batch_items:
+                counts["Error"] += 1
+                results.append({
+                    "file": vp.name,
+                    "result": "Error",
+                    "raw_output": str(e),
+                    "true_label": "Unknown",
+                    "load_time_s": round(batch_load_time / len(batch_items), 3),
+                    "inference_time_s": 0.0,
+                })
+            print(f"  Batch {batch_num} INFERENCE ERROR - {e}")
+            continue
+        batch_inference_time = time.time() - inference_start
+        total_inference_time += batch_inference_time
+        per_video_inference = batch_inference_time / len(batch_items)
 
-            analysis_start = time.time()
-            raw = analyze_video(model, processor, video_path, prefetched_data, args.max_tokens, base_text)
-            inference_time = time.time() - analysis_start
-            print(raw)
+        # --- Process results ---
+        for idx, ((vp, _), raw) in enumerate(zip(batch_items, raw_outputs)):
+            true_label = get_true_label(vp)
             result = parse_result(raw)
-            total_inference_time += inference_time
-
             counts[result] += 1
 
             pred_label = 1 if result == "Anomaly" else 0
             if true_label is not None:
-                metrics.update([pred_label], [true_label], [inference_time])
+                metrics.update([pred_label], [true_label], [per_video_inference])
 
             results.append({
-                "file": video_path.name,
+                "file": vp.name,
                 "result": result,
                 "raw_output": raw,
                 "true_label": "Anomaly" if true_label == 1 else ("Normal" if true_label == 0 else "Unknown"),
-                "load_time_s": round(load_time, 3),
-                "inference_time_s": round(inference_time, 3),
+                "load_time_s": round(batch_load_time / len(batch_items), 3),
+                "inference_time_s": round(per_video_inference, 3),
             })
 
+            global_idx = global_offset + idx
             print(
-                f"[{i}/{len(video_files)}] {video_path.name}: {result} "
-                f"(Load: {load_time:.2f}s, INT8 Inference: {inference_time:.2f}s)"
+                f"[{global_idx}/{len(video_files)}] {vp.name}: {result} "
+                f"(raw: {raw!r})"
             )
 
-        except Exception as e:
-            counts["Error"] += 1
-            results.append({
-                "file": video_path.name,
-                "result": "Error",
-                "raw_output": str(e),
-                "load_time_s": 0.0,
-                "inference_time_s": 0.0,
-            })
-            print(f"[{i}/{len(video_files)}] {video_path.name}: ERROR - {e}")
+        print(
+            f"  Batch {batch_num} ({len(batch_items)} videos): "
+            f"Load {batch_load_time:.2f}s, Inference {batch_inference_time:.2f}s "
+            f"({per_video_inference:.2f}s/video)"
+        )
 
-    total_time = time.time() - batch_start_time
+    total_time = time.time() - overall_start
 
-    # Build output JSON
     output_data = {
         "config": {
             "model": args.model,
-            "inference_mode": "bitsandbytes INT8",
+            "inference_mode": "FP16 batched",
+            "batch_size": args.batch_size,
             "fps": args.fps,
             "max_tokens": args.max_tokens,
             "target_resolution": args.target_resolution,
-            "quantization": "INT8 (bitsandbytes load_in_8bit)",
-            "compute_type": "INT8 matrix multiplication",
+            "compute_type": "bfloat16",
             "gpu": gpu_name,
             "compute_capability": f"{compute_cap[0]}.{compute_cap[1]}",
         },
@@ -274,19 +339,17 @@ def main():
             "total_load_time_s": round(total_load_time, 3),
             "total_inference_time_s": round(total_inference_time, 3),
             "total_time_s": round(total_time, 3),
-            "avg_inference_time_s": round(total_inference_time / len(video_files), 3) if video_files else 0,
+            "avg_inference_time_s": round(total_inference_time / max(len(video_files), 1), 3),
         },
         "metrics": metrics.compute() if metrics.count > 0 else None,
         "results": results,
     }
 
-    # Save JSON
     with open(output_json_path, "w") as f:
         json.dump(output_data, f, indent=2)
 
-    # Print summary
     print("=" * 50)
-    print("\nSUMMARY — INT8 Inference (bitsandbytes)")
+    print(f"\nSUMMARY — FP16 Batched Inference (batch_size={args.batch_size})")
     print("=" * 50)
     print(f"Total videos: {len(video_files)}")
     print(f"  - Anomaly: {counts['Anomaly']}")
@@ -294,8 +357,8 @@ def main():
     print(f"  - Unknown: {counts['Unknown']}")
     print(f"  - Errors: {counts['Error']}")
     print(f"\nTotal load time: {total_load_time:.2f}s")
-    print(f"Total INT8 inference time: {total_inference_time:.2f}s")
-    print(f"Average INT8 inference time: {total_inference_time / len(video_files):.2f}s per video")
+    print(f"Total FP16 inference time: {total_inference_time:.2f}s")
+    print(f"Average inference time: {total_inference_time / max(len(video_files), 1):.2f}s per video")
 
     if metrics.count > 0:
         m = metrics.compute()
@@ -309,7 +372,7 @@ def main():
         print(f"  Avg Inference Time: {m['Avg Inference Time']:.3f}s")
 
     print(f"\nResults saved to: {output_json_path}")
-    print("FP16 inference complete.")
+    print("FP16 batched inference complete.")
 
 
 if __name__ == "__main__":
