@@ -1,0 +1,28 @@
+# Requirements for Autoware MCP VLM control loop
+#
+# These are the pip-installable dependencies for autoware_mcp_server.py and
+# vlm_autoware_loop.py.  ROS 2 packages (rclpy, cv_bridge, sensor_msgs, etc.)
+# come from the Autoware/ROS 2 workspace and are NOT listed here.
+#
+# Install:
+#   pip install -r requirements_mcp.txt
+#
+# ROS 2 packages required (source your Autoware workspace first):
+#   rclpy, cv_bridge, sensor_msgs, std_srvs,
+#   autoware_auto_control_msgs, autoware_auto_vehicle_msgs,
+#   tier4_planning_msgs, tier4_system_msgs
+
+# =============================================================================
+# MCP (Model Context Protocol) — server + client
+# =============================================================================
+fastmcp>=2.0.0
+
+# =============================================================================
+# VLM inference (shared with requirements_fp4.txt)
+# =============================================================================
+torch>=2.9.0
+transformers>=4.56.0
+qwen-vl-utils>=0.0.14
+opencv-python-headless>=4.8.0
+decord>=0.6.0
+numpy<2
