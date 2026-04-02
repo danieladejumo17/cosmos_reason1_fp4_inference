@@ -11,6 +11,7 @@ Output layout:
 """
 
 import argparse
+import subprocess
 from pathlib import Path
 
 import cv2
@@ -46,20 +47,36 @@ def write_video(frames_dir: Path, frame_names: list[str], output_path: Path, fps
     first_frame = cv2.imread(str(frames_dir / frame_names[0]))
     if first_frame is None:
         raise IOError(f"Could not read frame: {frames_dir / frame_names[0]}")
-
     h, w = first_frame.shape[:2]
-    fourcc = cv2.VideoWriter_fourcc(*"mp4v")
-    writer = cv2.VideoWriter(str(output_path), fourcc, fps, (w, h))
 
-    writer.write(first_frame)
+    cmd = [
+        "ffmpeg", "-y",
+        "-f", "rawvideo",
+        "-vcodec", "rawvideo",
+        "-pix_fmt", "bgr24",
+        "-s", f"{w}x{h}",
+        "-r", str(fps),
+        "-i", "-",
+        "-c:v", "libx264",
+        "-pix_fmt", "yuv420p",
+        "-preset", "fast",
+        "-loglevel", "error",
+        str(output_path),
+    ]
+    proc = subprocess.Popen(cmd, stdin=subprocess.PIPE)
+
+    proc.stdin.write(first_frame.tobytes())
     for name in frame_names[1:]:
         frame = cv2.imread(str(frames_dir / name))
         if frame is None:
             print(f"  WARNING: skipping unreadable frame {frames_dir / name}")
             continue
-        writer.write(frame)
+        proc.stdin.write(frame.tobytes())
 
-    writer.release()
+    proc.stdin.close()
+    proc.wait()
+    if proc.returncode != 0:
+        raise RuntimeError(f"ffmpeg failed with exit code {proc.returncode} for {output_path}")
 
 
 def main():
