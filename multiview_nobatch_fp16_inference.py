@@ -19,6 +19,12 @@ import os
 os.environ['FORCE_QWENVL_VIDEO_READER'] = 'decord'
 
 VIEW_DIRS = ("front_view", "left_view", "right_view", "back_view")
+VIEW_LABELS = {
+    "front_view": "Front view",
+    "left_view": "Left view",
+    "right_view": "Right view",
+    "back_view": "Rear view",
+}
 
 # ============================================================
 # 1. Model Loader
@@ -50,8 +56,9 @@ def load_model(model_name: str):
 def build_cached_prompt(processor):
     # TODO: refine multiview prompt
     base_text = (
-        "You are an autonomous driving safety expert analyzing four synchronized ego-vehicle camera views "
-        "(front, left, right, rear) for EXTERNAL ANOMALIES that may impact safe AV operation.\n\n"
+        "You are an autonomous driving safety expert. The four videos above show "
+        "synchronized front, left, right, and rear views from an ego vehicle.\n\n"
+        "Analyze all views for EXTERNAL ANOMALIES that may impact safe AV operation.\n\n"
         "<think>\n"
         "- Obstacles, pedestrians, or vehicles violating rules\n"
         "- Roadwork, blocked lanes, poor visibility, or hazards\n"
@@ -98,6 +105,7 @@ def parse_result(raw_output: str) -> str:
 # 5. Multiview Video Loading
 # ============================================================
 def _compute_total_pixels(video_path: Path, target_fps: int, target_resolution: tuple[int, int]) -> int:
+    cap = None
     try:
         cap = cv2.VideoCapture(str(video_path))
         if not cap.isOpened():
@@ -112,7 +120,7 @@ def _compute_total_pixels(video_path: Path, target_fps: int, target_resolution: 
 
         return num_frames_to_sample * target_resolution[0] * target_resolution[1]
     finally:
-        if 'cap' in locals() and cap.isOpened():
+        if cap is not None and cap.isOpened():
             cap.release()
 
 
@@ -122,12 +130,14 @@ def load_multiview_videos(
     """
     Load 4 synchronized view videos and process them together via qwen_vl_utils.
     view_paths: dict mapping view dir name -> video Path (ordered front, left, right, back).
+    Content is interleaved: text label, then video, for each view.
     Returns (image_inputs, video_inputs) covering all views.
     """
     content = []
     for view_dir in VIEW_DIRS:
         vp = view_paths[view_dir]
         total_pixels = _compute_total_pixels(vp, target_fps, target_resolution)
+        content.append({"type": "text", "text": f"{VIEW_LABELS[view_dir]}:"})
         content.append({"type": "video", "video": str(vp), "total_pixels": total_pixels})
 
     image_inputs, video_inputs = qwen_vl_utils.process_vision_info(
@@ -149,9 +159,10 @@ def analyze_multiview(
     """
     image_inputs, video_inputs = prefetched_data
 
-    content = [
-        {"type": "video", "video": str(view_paths[vd])} for vd in VIEW_DIRS
-    ]
+    content = []
+    for vd in VIEW_DIRS:
+        content.append({"type": "text", "text": f"{VIEW_LABELS[vd]}:"})
+        content.append({"type": "video", "video": str(view_paths[vd])})
     content.append({"type": "text", "text": base_text})
 
     conversation = [{"role": "user", "content": content}]
@@ -176,6 +187,7 @@ def analyze_multiview(
 # 7. Main — Multiview Sequential Processing
 # ============================================================
 def get_true_label(clip_name: str):
+    #TODO: this gets label only from the front view
     stem = Path(clip_name).stem
     if stem.startswith("Anom"):
         return 1
@@ -189,9 +201,11 @@ def discover_clips(video_dir: Path) -> list[str]:
     Discover clip names from front_view/ and verify they exist in all view dirs.
     Returns sorted list of clip filenames present across all 4 views.
     """
+    missing_dirs = [vd for vd in VIEW_DIRS if not (video_dir / vd).is_dir()]
+    if missing_dirs:
+        raise FileNotFoundError(f"Expected view directories not found: {missing_dirs}")
+
     front_dir = video_dir / VIEW_DIRS[0]
-    if not front_dir.is_dir():
-        raise FileNotFoundError(f"Expected view directory not found: {front_dir}")
 
     clip_names = sorted(
         f.name for f in front_dir.iterdir()
@@ -200,7 +214,7 @@ def discover_clips(video_dir: Path) -> list[str]:
 
     valid_clips = []
     for clip in clip_names:
-        missing = [vd for vd in VIEW_DIRS if not (video_dir / vd / clip).is_file()]
+        missing = [vd for vd in VIEW_DIRS if not (video_dir / vd / clip).is_file()] # check if a view is missing for each video
         if missing:
             print(f"  WARNING: {clip} missing in {missing}, skipping.")
         else:
@@ -270,9 +284,9 @@ def main():
             result = parse_result(raw)
             counts[result] += 1
 
-            true_label = get_true_label(clip_name)
-            pred_label = 1 if result == "Anomaly" else 0
-            if true_label is not None:
+            true_label = get_true_label(clip_name) #TODO: this gets label only from the front view
+            if (true_label is not None) and (result != "Unknown"):
+                pred_label = 1 if result == "Anomaly" else 0
                 metrics.update([pred_label], [true_label], [inference_time])
 
             results.append({
