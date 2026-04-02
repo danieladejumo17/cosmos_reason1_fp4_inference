@@ -186,14 +186,25 @@ def analyze_multiview(
 # ============================================================
 # 7. Main — Multiview Sequential Processing
 # ============================================================
-def get_true_label(clip_name: str):
-    #TODO: this gets label only from the front view
-    stem = Path(clip_name).stem
-    if stem.startswith("Anom"):
-        return 1
-    elif stem.startswith("Norm"):
-        return 0
-    return None
+def get_true_label(view_paths: dict[str, Path]):
+    """
+    Determine ground-truth label from filenames across all 4 views.
+    Anomaly if ANY view file starts with 'Anom_', Normal only if ALL are 'Norm_'.
+    Returns None if no label prefix is found on any view.
+    """
+    has_anom = False
+    has_label = False
+    for vp in view_paths.values():
+        stem = vp.stem
+        if stem.startswith("Anom"):
+            has_anom = True
+            has_label = True
+        elif stem.startswith("Norm"):
+            has_label = True
+
+    if not has_label:
+        return None
+    return 1 if has_anom else 0
 
 
 def discover_clips(video_dir: Path) -> list[str]:
@@ -284,7 +295,7 @@ def main():
             result = parse_result(raw)
             counts[result] += 1
 
-            true_label = get_true_label(clip_name) #TODO: this gets label only from the front view
+            true_label = get_true_label(view_paths)
             if (true_label is not None) and (result != "Unknown"):
                 pred_label = 1 if result == "Anomaly" else 0
                 metrics.update([pred_label], [true_label], [inference_time])
