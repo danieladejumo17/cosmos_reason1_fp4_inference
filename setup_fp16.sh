@@ -54,6 +54,7 @@ pip install \
     accelerate \
     qwen-vl-utils \
     decord \
+    torchcodec \
     opencv-python-headless \
     natsort \
     scikit-learn \
@@ -62,11 +63,12 @@ pip install \
     numpy
 
 echo ""
-echo -e "${GREEN}✅ All dependencies installed.${NC}"
+echo -e "${GREEN} All dependencies installed.${NC}"
 echo ""
 echo "Verify with:"
 echo "  python -c \"import torch; print('PyTorch', torch.__version__, '| CUDA', torch.cuda.is_available())\""
 echo "  python -c \"import transformers; print('Transformers', transformers.__version__)\""
+echo "  python -c \"import torchcodec; print('torchcodec OK')\""
 echo ""
 echo "Run inference:"
 echo "  python batched_fp16_inference.py --video_dir ./videos --batch_size 2"

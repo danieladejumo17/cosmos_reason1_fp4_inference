@@ -2,9 +2,12 @@
 
 import argparse
 import json
+import os
 import time
 import warnings
 from pathlib import Path
+
+os.environ["FORCE_QWENVL_VIDEO_READER"] = "torchcodec"
 
 import torch
 import transformers
@@ -14,9 +17,6 @@ import cv2
 from metrics import Metrics
 
 warnings.filterwarnings("ignore", category=UserWarning)
-
-import os
-os.environ['FORCE_QWENVL_VIDEO_READER'] = 'decord'
 
 VIEW_DIRS = ("front_view", "left_view", "right_view", "back_view")
 VIEW_LABELS = {
