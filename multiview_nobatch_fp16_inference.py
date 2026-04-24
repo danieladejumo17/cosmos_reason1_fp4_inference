@@ -261,6 +261,8 @@ COLLAGE_LAYOUT = [
 ]
 
 HEADER_HEIGHT = 60
+GAP_H = 10
+GAP_V = 10
 FONT = cv2.FONT_HERSHEY_SIMPLEX
 COLOR_ANOMALY = (0, 0, 255)
 COLOR_NORMAL = (0, 200, 0)
@@ -322,8 +324,8 @@ def generate_collage_video(
         return
     clip_h, clip_w = sample[0].shape[:2]
 
-    collage_w = 2 * clip_w
-    collage_h = HEADER_HEIGHT + 2 * clip_h
+    collage_w = 2 * clip_w + GAP_H
+    collage_h = HEADER_HEIGHT + 2 * clip_h + GAP_V
 
     cmd = [
         "ffmpeg", "-y",
@@ -382,8 +384,8 @@ def generate_collage_video(
                         _label_color(pred_label), 2, cv2.LINE_AA)
 
             for vd, col, row in COLLAGE_LAYOUT:
-                x0 = col * clip_w
-                y0 = HEADER_HEIGHT + row * clip_h
+                x0 = col * (clip_w + GAP_H)
+                y0 = HEADER_HEIGHT + row * (clip_h + GAP_V)
 
                 if fi < len(all_view_frames[vd]):
                     frame = all_view_frames[vd][fi]
