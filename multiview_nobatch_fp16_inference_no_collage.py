@@ -2,14 +2,12 @@
 
 import argparse
 import json
-import numpy as np
 import os
-import subprocess
 import time
 import warnings
 from pathlib import Path
 
-os.environ["FORCE_QWENVL_VIDEO_READER"] = "decord"
+os.environ["FORCE_QWENVL_VIDEO_READER"] = "torchcodec"
 
 import torch
 import transformers
@@ -249,163 +247,6 @@ def discover_clips(video_dir: Path) -> list[tuple[str, dict[str, Path]]]:
     return valid
 
 
-# ============================================================
-# 8. Collage Video Generation
-# ============================================================
-
-COLLAGE_LAYOUT = [
-    ("left_view",  0, 0),
-    ("front_view", 1, 0),
-    ("right_view", 0, 1),
-    ("back_view",  1, 1),
-]
-
-HEADER_HEIGHT = 60
-FONT = cv2.FONT_HERSHEY_SIMPLEX
-COLOR_ANOMALY = (0, 0, 255)
-COLOR_NORMAL = (0, 200, 0)
-COLOR_UNKNOWN = (180, 180, 180)
-COLOR_WHITE = (255, 255, 255)
-COLOR_BLACK = (0, 0, 0)
-
-
-def _label_color(label: str) -> tuple[int, int, int]:
-    if label == "Anomaly":
-        return COLOR_ANOMALY
-    if label == "Normal":
-        return COLOR_NORMAL
-    return COLOR_UNKNOWN
-
-
-def _view_gt_label(view_path: Path) -> str:
-    return "Anomaly" if view_path.stem.startswith("Anom") else "Normal"
-
-
-def _read_video_frames(video_path: Path) -> list[np.ndarray]:
-    cap = cv2.VideoCapture(str(video_path))
-    frames = []
-    while True:
-        ret, frame = cap.read()
-        if not ret:
-            break
-        frames.append(frame)
-    cap.release()
-    return frames
-
-
-def generate_collage_video(
-    clips: list[tuple[str, dict[str, Path]]],
-    results: list[dict],
-    output_path: Path,
-    native_fps: int,
-    window_sec: int,
-    step_sec: int,
-):
-    """
-    Build a single 2x2 collage video from the sliding-window clip set.
-
-    For the first clip all frames are written; for subsequent clips only the
-    last `step_sec` seconds of new frames are appended, producing one
-    continuous output video with per-window label overlays.
-    """
-    if not clips:
-        return
-
-    step_frames = native_fps * step_sec
-    window_frames = native_fps * window_sec
-    overlap_frames = window_frames - step_frames
-
-    sample_path = next(iter(clips[0][1].values()))
-    sample = _read_video_frames(sample_path)
-    if not sample:
-        print("WARNING: could not read sample clip for collage; skipping video output.")
-        return
-    clip_h, clip_w = sample[0].shape[:2]
-
-    collage_w = 2 * clip_w
-    collage_h = HEADER_HEIGHT + 2 * clip_h
-
-    cmd = [
-        "ffmpeg", "-y",
-        "-f", "rawvideo",
-        "-vcodec", "rawvideo",
-        "-pix_fmt", "bgr24",
-        "-s", f"{collage_w}x{collage_h}",
-        "-r", str(native_fps),
-        "-i", "-",
-        "-c:v", "libx264",
-        "-pix_fmt", "yuv420p",
-        "-preset", "fast",
-        "-loglevel", "error",
-        str(output_path),
-    ]
-    proc = subprocess.Popen(cmd, stdin=subprocess.PIPE)
-
-    print(f"\nGenerating collage video ({collage_w}x{collage_h} @ {native_fps}fps) ...")
-
-    for idx, ((clip_id, view_paths), result_entry) in enumerate(zip(clips, results)):
-        gt_int = get_true_label(view_paths)
-        gt_label = "Anomaly" if gt_int == 1 else ("Normal" if gt_int == 0 else "Unknown")
-        pred_label = result_entry["result"]
-
-        per_view_gt = {vd: _view_gt_label(vp) for vd, vp in view_paths.items()}
-
-        all_view_frames: dict[str, list[np.ndarray]] = {}
-        for vd in VIEW_DIRS:
-            all_view_frames[vd] = _read_video_frames(view_paths[vd])
-
-        n_frames = min(len(f) for f in all_view_frames.values())
-        if idx == 0:
-            frame_start = 0
-        else:
-            frame_start = overlap_frames
-
-        for fi in range(frame_start, n_frames):
-            canvas = np.zeros((collage_h, collage_w, 3), dtype=np.uint8)
-
-            header_text = f"GT: {gt_label}  |  Pred: {pred_label}"
-            text_size = cv2.getTextSize(header_text, FONT, 0.9, 2)[0]
-            tx = (collage_w - text_size[0]) // 2
-            ty = (HEADER_HEIGHT + text_size[1]) // 2
-            cv2.putText(canvas, "GT: ", (tx, ty), FONT, 0.9, COLOR_WHITE, 2, cv2.LINE_AA)
-            gt_offset = cv2.getTextSize("GT: ", FONT, 0.9, 2)[0][0]
-            cv2.putText(canvas, gt_label, (tx + gt_offset, ty), FONT, 0.9,
-                        _label_color(gt_label), 2, cv2.LINE_AA)
-            sep_offset = gt_offset + cv2.getTextSize(gt_label, FONT, 0.9, 2)[0][0]
-            cv2.putText(canvas, "  |  ", (tx + sep_offset, ty), FONT, 0.9,
-                        COLOR_WHITE, 2, cv2.LINE_AA)
-            pred_prefix_offset = sep_offset + cv2.getTextSize("  |  ", FONT, 0.9, 2)[0][0]
-            cv2.putText(canvas, "Pred: ", (tx + pred_prefix_offset, ty), FONT, 0.9,
-                        COLOR_WHITE, 2, cv2.LINE_AA)
-            pred_text_offset = pred_prefix_offset + cv2.getTextSize("Pred: ", FONT, 0.9, 2)[0][0]
-            cv2.putText(canvas, pred_label, (tx + pred_text_offset, ty), FONT, 0.9,
-                        _label_color(pred_label), 2, cv2.LINE_AA)
-
-            for vd, col, row in COLLAGE_LAYOUT:
-                x0 = col * clip_w
-                y0 = HEADER_HEIGHT + row * clip_h
-
-                if fi < len(all_view_frames[vd]):
-                    frame = all_view_frames[vd][fi]
-                    canvas[y0:y0 + clip_h, x0:x0 + clip_w] = frame
-
-                view_label = f"{VIEW_LABELS[vd]} - GT: {per_view_gt[vd]}"
-                cv2.putText(canvas, view_label, (x0 + 10, y0 + 30), FONT, 0.7,
-                            _label_color(per_view_gt[vd]), 2, cv2.LINE_AA)
-
-            proc.stdin.write(canvas.tobytes())
-
-        if (idx + 1) % 10 == 0 or idx == len(clips) - 1:
-            print(f"  Collage progress: {idx + 1}/{len(clips)} clips processed")
-
-    proc.stdin.close()
-    proc.wait()
-    if proc.returncode != 0:
-        raise RuntimeError(f"ffmpeg failed with exit code {proc.returncode} for {output_path}")
-
-    print(f"Collage video saved to: {output_path}")
-
-
 def main():
     parser = argparse.ArgumentParser(description="FP16 Multiview Inference")
     parser.add_argument("--video_dir", type=str, required=True,
@@ -416,14 +257,6 @@ def main():
     parser.add_argument("--target_resolution", type=str, default="250x250")
     parser.add_argument("--output_json", type=str, default=None,
                         help="Path to save JSON results (default: <video_dir>/fp16_multiview_results.json)")
-    parser.add_argument("--output_video", type=str, default=None,
-                        help="Path for collage output video (default: <video_dir>/collage_output.mp4)")
-    parser.add_argument("--native_fps", type=int, default=20,
-                        help="Native FPS of the source clip videos (for collage output)")
-    parser.add_argument("--window_sec", type=int, default=5,
-                        help="Duration of each sliding-window clip in seconds")
-    parser.add_argument("--step_sec", type=int, default=2,
-                        help="Sliding window step size in seconds")
     args = parser.parse_args()
 
     width, height = map(int, args.target_resolution.split('x'))
@@ -564,15 +397,6 @@ def main():
         print(f"  Avg Inference Time: {m['Avg Inference Time']:.3f}s")
 
     print(f"\nResults saved to: {output_json_path}")
-
-    output_video_path = Path(args.output_video) if args.output_video else video_dir / "collage_output.mp4"
-    generate_collage_video(
-        clips, results, output_video_path,
-        native_fps=args.native_fps,
-        window_sec=args.window_sec,
-        step_sec=args.step_sec,
-    )
-
     print("FP16 multiview inference complete.")
 
 
