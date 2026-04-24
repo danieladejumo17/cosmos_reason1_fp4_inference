@@ -207,31 +207,44 @@ def get_true_label(view_paths: dict[str, Path]):
     return 1 if has_anom else 0
 
 
-def discover_clips(video_dir: Path) -> list[str]:
+VIDEO_EXTS = (".mp4", ".mov", ".avi", ".mkv")
+
+
+def _clip_numeric_id(filename: str) -> str:
+    """Extract the numeric ID suffix from e.g. 'Anom_0001.mp4' -> '0001'."""
+    return Path(filename).stem.rsplit("_", 1)[-1]
+
+
+def discover_clips(video_dir: Path) -> list[tuple[str, dict[str, Path]]]:
     """
-    Discover clip names from front_view/ and verify they exist in all view dirs.
-    Returns sorted list of clip filenames present across all 4 views.
+    Match clips across all 4 view dirs by their numeric ID (the four-digit
+    suffix), regardless of Anom_/Norm_ label prefix.
+
+    Returns a sorted list of (numeric_id, {view_dir: full_path}) tuples
+    for IDs that are present in every view.
     """
     missing_dirs = [vd for vd in VIEW_DIRS if not (video_dir / vd).is_dir()]
     if missing_dirs:
         raise FileNotFoundError(f"Expected view directories not found: {missing_dirs}")
 
-    front_dir = video_dir / VIEW_DIRS[0]
+    id_to_paths: dict[str, dict[str, Path]] = {}
+    for vd in VIEW_DIRS:
+        vd_path = video_dir / vd
+        for f in vd_path.iterdir():
+            if f.suffix.lower() in VIDEO_EXTS:
+                nid = _clip_numeric_id(f.name)
+                id_to_paths.setdefault(nid, {})[vd] = f
 
-    clip_names = sorted(
-        f.name for f in front_dir.iterdir()
-        if f.suffix.lower() in (".mp4", ".mov", ".avi", ".mkv")
-    )
-
-    valid_clips = []
-    for clip in clip_names:
-        missing = [vd for vd in VIEW_DIRS if not (video_dir / vd / clip).is_file()] # check if a view is missing for each video
+    valid = []
+    for nid in sorted(id_to_paths):
+        paths = id_to_paths[nid]
+        missing = [vd for vd in VIEW_DIRS if vd not in paths]
         if missing:
-            print(f"  WARNING: {clip} missing in {missing}, skipping.")
+            print(f"  WARNING: clip ID {nid} missing in {missing}, skipping.")
         else:
-            valid_clips.append(clip)
+            valid.append((nid, paths))
 
-    return valid_clips
+    return valid
 
 
 def main():
@@ -250,8 +263,8 @@ def main():
     target_resolution = (width, height)
 
     video_dir = Path(args.video_dir)
-    clip_names = discover_clips(video_dir)
-    if not clip_names:
+    clips = discover_clips(video_dir)
+    if not clips:
         print("No synchronized clip sets found.")
         return
 
@@ -265,7 +278,7 @@ def main():
     compute_cap = torch.cuda.get_device_capability(0) if torch.cuda.is_available() else (0, 0)
 
     print(
-        f"Found {len(clip_names)} synchronized clip sets (4 views each) "
+        f"Found {len(clips)} synchronized clip sets (4 views each) "
         f"— running FP16 multiview inference\n" + "=" * 50
     )
 
@@ -276,8 +289,8 @@ def main():
     metrics = Metrics()
     overall_start = time.time()
 
-    for i, clip_name in enumerate(clip_names, 1):
-        view_paths = {vd: video_dir / vd / clip_name for vd in VIEW_DIRS}
+    for i, (clip_id, view_paths) in enumerate(clips, 1):
+        clip_name = f"clip_{clip_id}"
 
         try:
             load_start = time.time()
@@ -310,7 +323,7 @@ def main():
             })
 
             print(
-                f"[{i}/{len(clip_names)}] {clip_name}: {result} "
+                f"[{i}/{len(clips)}] {clip_name}: {result} "
                 f"(Load: {load_time:.2f}s, Inference: {inference_time:.2f}s) "
                 f"(raw: {raw!r})"
             )
@@ -325,7 +338,7 @@ def main():
                 "load_time_s": 0.0,
                 "inference_time_s": 0.0,
             })
-            print(f"[{i}/{len(clip_names)}] {clip_name}: ERROR - {e}")
+            print(f"[{i}/{len(clips)}] {clip_name}: ERROR - {e}")
 
     total_time = time.time() - overall_start
 
@@ -343,7 +356,7 @@ def main():
             "compute_capability": f"{compute_cap[0]}.{compute_cap[1]}",
         },
         "summary": {
-            "total_clips": len(clip_names),
+            "total_clips": len(clips),
             "anomalies": counts["Anomaly"],
             "normals": counts["Normal"],
             "unknowns": counts["Unknown"],
@@ -351,7 +364,7 @@ def main():
             "total_load_time_s": round(total_load_time, 3),
             "total_inference_time_s": round(total_inference_time, 3),
             "total_time_s": round(total_time, 3),
-            "avg_inference_time_s": round(total_inference_time / max(len(clip_names), 1), 3),
+            "avg_inference_time_s": round(total_inference_time / max(len(clips), 1), 3),
         },
         "metrics": metrics.compute() if metrics.count > 0 else None,
         "results": results,
@@ -363,14 +376,14 @@ def main():
     print("=" * 50)
     print(f"\nSUMMARY — FP16 Multiview Inference ({len(VIEW_DIRS)} views)")
     print("=" * 50)
-    print(f"Total clips: {len(clip_names)}")
+    print(f"Total clips: {len(clips)}")
     print(f"  - Anomaly: {counts['Anomaly']}")
     print(f"  - Normal: {counts['Normal']}")
     print(f"  - Unknown: {counts['Unknown']}")
     print(f"  - Errors: {counts['Error']}")
     print(f"\nTotal load time: {total_load_time:.2f}s")
     print(f"Total inference time: {total_inference_time:.2f}s")
-    print(f"Average inference time: {total_inference_time / max(len(clip_names), 1):.2f}s per clip")
+    print(f"Average inference time: {total_inference_time / max(len(clips), 1):.2f}s per clip")
 
     if metrics.count > 0:
         m = metrics.compute()
