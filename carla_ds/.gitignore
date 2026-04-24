@@ -1,2 +1,5 @@
 carla_vid_ds/
 camera_clean_individualframe/
+dataset_output_*/
+dataset_output/
+dataset_output_*.zip
