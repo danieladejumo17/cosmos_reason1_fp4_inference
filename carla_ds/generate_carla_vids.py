@@ -3,11 +3,15 @@
 Convert sequential CARLA camera frames into a sliding-window video dataset
 compatible with the multiview inference script.
 
+Each source subfolder is processed independently.  Files are sorted by their
+four-digit numeric ID so that output clip N across every view always
+corresponds to the same range of image IDs.
+
 Source layout:
-    camera_clean_individualframe/{front,left,right,rear}/000000.png ...
+    camera_clean_individualframe/{front,left,right,rear}/{Norm,Anom}_XXXX.jpg
 
 Output layout:
-    carla_vid_ds/{front_view,left_view,right_view,back_view}/Anom_0001.mp4 ...
+    carla_vid_ds/{front_view,left_view,right_view,back_view}/{Anom,Norm}_XXXX.mp4
 """
 
 import argparse
@@ -15,7 +19,6 @@ import subprocess
 from pathlib import Path
 
 import cv2
-from natsort import natsorted
 
 VIEW_MAP = {
     "front": "front_view",
@@ -23,19 +26,24 @@ VIEW_MAP = {
     "right": "right_view",
     "rear": "back_view",
 }
-SOURCE_VIEWS = list(VIEW_MAP.keys())
 
 
-def discover_frames(input_dir: Path) -> list[str]:
-    """List canonical frame filenames from the front/ directory, naturally sorted."""
-    front_dir = input_dir / "front"
-    if not front_dir.is_dir():
-        raise FileNotFoundError(f"Expected source directory not found: {front_dir}")
+def _frame_id(filename: str) -> int:
+    """Extract the four-digit numeric ID from e.g. 'Norm_0042.jpg' -> 42."""
+    return int(Path(filename).stem.rsplit("_", 1)[-1])
 
-    frames = natsorted(
-        f.name for f in front_dir.iterdir()
-        if f.suffix.lower() == ".png" and not f.name.endswith(":Zone.Identifier")
-    )
+
+def discover_frames(view_dir: Path) -> list[str]:
+    """List frame filenames from a view directory, sorted by numeric ID."""
+    if not view_dir.is_dir():
+        raise FileNotFoundError(f"Expected source directory not found: {view_dir}")
+
+    frames = [
+        f.name for f in view_dir.iterdir()
+        if f.suffix.lower() in (".png", ".jpg")
+        and not f.name.endswith(":Zone.Identifier")
+    ]
+    frames.sort(key=_frame_id)
     return frames
 
 
@@ -98,52 +106,54 @@ def main():
     input_dir = Path(args.input_dir)
     output_dir = Path(args.output_dir)
 
-    missing_src = [v for v in SOURCE_VIEWS if not (input_dir / v).is_dir()]
+    missing_src = [v for v in VIEW_MAP if not (input_dir / v).is_dir()]
     if missing_src:
         raise FileNotFoundError(f"Missing source view directories: {missing_src}")
 
     for out_view in VIEW_MAP.values():
         (output_dir / out_view).mkdir(parents=True, exist_ok=True)
 
-    frame_names = discover_frames(input_dir)
-    total_frames = len(frame_names)
-    print(f"Discovered {total_frames} frames in {input_dir / 'front'}")
-
     window_size = args.fps * args.window_sec
     step_size = args.fps * args.step_sec
 
-    if total_frames < window_size:
-        print(f"Not enough frames ({total_frames}) for a {args.window_sec}s window "
-              f"({window_size} frames needed). Exiting.")
-        return
+    for src_view, out_view in VIEW_MAP.items():
+        src_dir = input_dir / src_view
+        frame_names = discover_frames(src_dir)
+        total_frames = len(frame_names)
+        print(f"\n=== {src_view} -> {out_view} ({total_frames} frames) ===")
 
-    video_idx = 1
-    anom_count = 0
-    norm_count = 0
+        if total_frames < window_size:
+            print(f"  Not enough frames ({total_frames}) for a {args.window_sec}s window "
+                  f"({window_size} frames needed). Skipping.")
+            continue
 
-    for start in range(0, total_frames - window_size + 1, step_size):
-        window_frames = frame_names[start : start + window_size]
+        video_idx = 1
+        anom_count = 0
+        norm_count = 0
 
-        if has_anomaly(window_frames):
-            label = "Anom_"
-            anom_count += 1
-        else:
-            label = "Norm_"
-            norm_count += 1
+        for start in range(0, total_frames - window_size + 1, step_size):
+            window_frames = frame_names[start : start + window_size]
 
-        clip_name = f"{label}{video_idx:04d}.mp4"
+            if has_anomaly(window_frames):
+                label = "Anom"
+                anom_count += 1
+            else:
+                label = "Norm"
+                norm_count += 1
 
-        for src_view, out_view in VIEW_MAP.items():
-            src_dir = input_dir / src_view
+            clip_name = f"{label}_{video_idx:04d}.mp4"
             out_path = output_dir / out_view / clip_name
             write_video(src_dir, window_frames, out_path, args.fps)
 
-        print(f"[{video_idx}] {clip_name}  (frames {start}-{start + window_size - 1})")
-        video_idx += 1
+            id_start = _frame_id(window_frames[0])
+            id_end = _frame_id(window_frames[-1])
+            print(f"  [{video_idx}] {clip_name}  (IDs {id_start:04d}-{id_end:04d})")
+            video_idx += 1
 
-    total_clips = video_idx - 1
-    print(f"\nDone. Generated {total_clips} clips ({anom_count} Anomaly, {norm_count} Normal)")
-    print(f"Output: {output_dir}")
+        total_clips = video_idx - 1
+        print(f"  {out_view}: {total_clips} clips ({anom_count} Anomaly, {norm_count} Normal)")
+
+    print(f"\nDone. Output: {output_dir}")
 
 
 if __name__ == "__main__":
