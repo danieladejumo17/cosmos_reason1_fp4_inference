@@ -1,0 +1,30 @@
+# Requirements for the Zenoh-based Autoware MCP server.
+#
+# These are the pip-installable deps for zenoh_autoware_mcp_server.py and the
+# MCP-client hook added to multiview_nobatch_fp16_inference.py.
+#
+# Unlike requirements_mcp.txt, this stack has no ROS 2 dependency: the remote
+# (vast.ai) side speaks Zenoh directly and relies on a zenoh-bridge-ros2dds
+# instance running on the Autoware/CARLA host to relay messages to ROS 2 DDS.
+#
+# Install:
+#   pip install -r requirements_zenoh_mcp.txt
+#
+# Local-side setup (run once on the Autoware host):
+#   zenoh-bridge-ros2dds \
+#       --listen tcp/0.0.0.0:7447 \
+#       --allow '(system/mrm_request|vehicle/status/.*)'
+#
+# Remote-side activation:
+#   export ZENOH_CONNECT=tcp/<autoware-host>:7447
+
+# =============================================================================
+# MCP (Model Context Protocol) -- server + client
+# =============================================================================
+fastmcp>=2.0.0
+
+# =============================================================================
+# Zenoh transport + CDR (ROS 2 message) serialization
+# =============================================================================
+eclipse-zenoh>=1.0.0
+pycdr2>=1.0.0

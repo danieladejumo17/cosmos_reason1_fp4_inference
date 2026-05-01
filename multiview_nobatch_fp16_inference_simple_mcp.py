@@ -108,97 +108,94 @@ def parse_result(raw_output: str) -> str:
 
 
 # ============================================================
-# 4b. Agentic MCP primitives
+# 4b. Stage-2 MRM selector (runs only on Anomaly clips)
 # ============================================================
-# Tools we let the VLM see and invoke. `clear_mrm` is operator-only and
-# deliberately hidden so the model can't undo its own action mid-reasoning.
-VISIBLE_TOOLS = ("get_vehicle_state", "emergency_stop", "comfortable_stop", "pull_over")
-ACTION_TOOLS = {"emergency_stop", "comfortable_stop", "pull_over"}
-
-TOOL_TO_MRM = {
-    "emergency_stop":   "EMERGENCY_STOP",
-    "comfortable_stop": "COMFORTABLE_STOP",
-    "pull_over":        "PULL_OVER",
-}
-
 MRM_CHOICES = ("EMERGENCY_STOP", "COMFORTABLE_STOP", "PULL_OVER")
 
-_TOOL_CALL_RE = re.compile(
-    r"<tool_call>\s*(\{.*?\})\s*</tool_call>", re.DOTALL
-)
-_VERDICT_RE = re.compile(
-    r"<verdict>\s*(NORMAL|ANOMALY)\s*</verdict>", re.IGNORECASE
-)
+MRM_TO_TOOL = {
+    "EMERGENCY_STOP":   "emergency_stop",
+    "COMFORTABLE_STOP": "comfortable_stop",
+    "PULL_OVER":        "pull_over",
+}
+
+_MRM_RE = re.compile(r"MRM\s*[:\-]?\s*(EMERGENCY_STOP|COMFORTABLE_STOP|PULL_OVER)",
+                     re.IGNORECASE)
 
 
+def build_mrm_prompt() -> str:
+    return (
+        "An anomaly has been detected in the synchronized multiview footage above.\n"
+        "Choose the single most appropriate Minimal Risk Maneuver (MRM) for the ego vehicle.\n\n"
+        "<think>\n"
+        "- EMERGENCY_STOP: imminent collision risk, hard brake required now.\n"
+        "- COMFORTABLE_STOP: hazard visible ahead but it is safe to decelerate smoothly.\n"
+        "- PULL_OVER: persistent hazard or degraded driving condition; ego should leave the travel lane and stop.\n"
+        "</think>\n\n"
+        "<answer>\n"
+        "Reply with exactly one line of the form:\n"
+        "MRM: EMERGENCY_STOP\n"
+        "MRM: COMFORTABLE_STOP\n"
+        "MRM: PULL_OVER\n"
+        "</answer>"
+    )
+
+
+def parse_mrm(raw_output: str) -> str | None:
+    """Extract the MRM choice from stage-2 output. Returns None if unrecognized."""
+    m = _MRM_RE.search(raw_output or "")
+    if m:
+        return m.group(1).upper()
+    upper = (raw_output or "").upper()
+    for choice in MRM_CHOICES:
+        if choice in upper:
+            return choice
+    return None
+
+
+def analyze_mrm(
+    model, processor, view_paths: dict[str, Path],
+    prefetched_data: tuple, max_tokens: int, mrm_prompt: str,
+) -> str:
+    """Stage-2 inference: reuse the already-decoded video tensors from stage 1
+    and ask the VLM to pick one of the three MRMs.
+
+    Returns the raw model output string.
+    """
+    image_inputs, video_inputs = prefetched_data
+
+    content = []
+    for vd in VIEW_DIRS:
+        content.append({"type": "text", "text": f"{VIEW_LABELS[vd]}:"})
+        content.append({"type": "video", "video": str(view_paths[vd])})
+    content.append({"type": "text", "text": mrm_prompt})
+
+    conversation = [{"role": "user", "content": content}]
+    text = processor.apply_chat_template(conversation, tokenize=False, add_generation_prompt=True)
+
+    inputs = processor(
+        text=[text],
+        images=image_inputs,
+        videos=video_inputs,
+        padding=True,
+        return_tensors="pt",
+    ).to(model.device)
+
+    with torch.inference_mode():
+        output = model.generate(**inputs, max_new_tokens=max_tokens, do_sample=False)
+
+    new_tokens = output[:, inputs.input_ids.shape[1]:]
+    return processor.batch_decode(new_tokens, skip_special_tokens=True)[0].strip()
+
+
+# ============================================================
+# 4c. MCP client helper (stdio to zenoh_autoware_mcp_server.py)
+# ============================================================
 async def call_mcp_tool(client: MCPClient, tool_name: str, args: dict) -> str:
     """Invoke a tool on the MCP server and return the textual content."""
     result = await client.call_tool(tool_name, args)
     if result.content:
         return result.content[0].text
     return "{}"
-
-
-async def fetch_tool_catalog(client: MCPClient) -> tuple[str, dict]:
-    """List tools from the MCP server and render a text catalog for the VLM.
-
-    Only VISIBLE_TOOLS are exposed. Returns (catalog_text, schema_by_name).
-    """
-    tools = await client.list_tools()
-    lines = ["You have access to the following tools:", ""]
-    schemas: dict[str, dict] = {}
-    for t in tools:
-        if t.name not in VISIBLE_TOOLS:
-            continue
-        schema = getattr(t, "inputSchema", None) or {}
-        schemas[t.name] = schema
-        desc = (t.description or "").strip().splitlines()[0] if t.description else ""
-        lines.append(f"- {t.name}(args={json.dumps(schema)}): {desc}")
-    return "\n".join(lines), schemas
-
-
-def build_agent_system_prompt(catalog_text: str) -> str:
-    return (
-        "You are an autonomous driving safety agent analyzing four synchronized "
-        "camera views from an ego vehicle (front, left, right, rear).\n\n"
-        f"{catalog_text}\n\n"
-        "To call a tool, emit exactly one line of the form:\n"
-        '<tool_call>{"name": "<tool_name>", "arguments": {...}}</tool_call>\n'
-        "After you call a tool I will reply with "
-        "<tool_response>...</tool_response> and you may continue.\n\n"
-        "You MAY call get_vehicle_state at most once if current ego speed or "
-        "steering would change your decision. Otherwise proceed directly.\n\n"
-        "Finally, do exactly ONE of the following:\n"
-        "  (a) Call one MRM action tool (emergency_stop, comfortable_stop, "
-        "or pull_over) if any external anomaly or hazard is visible.\n"
-        "  (b) Emit <verdict>NORMAL</verdict> if the scene is safe.\n\n"
-        "MRM choice guide:\n"
-        "  EMERGENCY_STOP   - imminent collision risk, hard brake required.\n"
-        "  COMFORTABLE_STOP - hazard ahead but it is safe to slow smoothly.\n"
-        "  PULL_OVER        - persistent hazard, ego should leave the travel lane."
-    )
-
-
-def _parse_tool_call(raw: str) -> tuple[str, dict] | None:
-    m = _TOOL_CALL_RE.search(raw)
-    if not m:
-        return None
-    try:
-        call = json.loads(m.group(1))
-        name = call["name"]
-        args = call.get("arguments", {}) or {}
-        if not isinstance(args, dict):
-            return None
-        return name, args
-    except (json.JSONDecodeError, KeyError, TypeError):
-        return None
-
-
-def _parse_verdict(raw: str) -> str | None:
-    m = _VERDICT_RE.search(raw)
-    if not m:
-        return None
-    return "Normal" if m.group(1).upper() == "NORMAL" else "Anomaly"
 
 
 # ============================================================
@@ -281,130 +278,6 @@ def analyze_multiview(
 
     new_tokens = output[:, inputs.input_ids.shape[1]:]
     return processor.batch_decode(new_tokens, skip_special_tokens=True)[0].strip()
-
-
-# ============================================================
-# 6b. Agentic MCP inference loop
-# ============================================================
-async def analyze_agentic(
-    model, processor, view_paths: dict[str, Path],
-    prefetched_data: tuple, mcp_client: MCPClient,
-    system_prompt: str, max_iters: int, max_tokens: int,
-    mcp_timeout_s: float,
-) -> dict:
-    """Run the MCP agentic loop for one clip.
-
-    Iterates: generate -> parse <tool_call>/<verdict> -> dispatch tool via MCP
-    -> append <tool_response> as a user turn -> regenerate. The loop exits
-    when the model either calls a terminal MRM action tool or emits a
-    <verdict> tag, or when ``max_iters`` is reached.
-
-    Returns a trace dict::
-
-        {
-          "verdict": "Normal" | "Anomaly" | "Unknown",
-          "mrm_choice": "EMERGENCY_STOP" | ... | None,
-          "tool_calls": [{"name", "arguments", "response"}, ...],
-          "iterations": int,
-          "final_raw": str,
-          "exit_reason": str,
-        }
-    """
-    image_inputs, video_inputs = prefetched_data
-
-    user_content = [{"type": "text", "text": system_prompt}]
-    for vd in VIEW_DIRS:
-        user_content.append({"type": "text", "text": f"{VIEW_LABELS[vd]}:"})
-        user_content.append({"type": "video", "video": str(view_paths[vd])})
-    user_content.append({
-        "type": "text",
-        "text": "Analyze the four synchronized views above and decide.",
-    })
-
-    conversation: list[dict] = [{"role": "user", "content": user_content}]
-    trace: dict = {
-        "tool_calls": [],
-        "verdict": "Unknown",
-        "mrm_choice": None,
-        "final_raw": "",
-        "iterations": 0,
-        "exit_reason": "max_iters",
-    }
-
-    for it in range(max_iters):
-        trace["iterations"] = it + 1
-
-        text = processor.apply_chat_template(
-            conversation, tokenize=False, add_generation_prompt=True
-        )
-        inputs = processor(
-            text=[text],
-            images=image_inputs,
-            videos=video_inputs,
-            padding=True,
-            return_tensors="pt",
-        ).to(model.device)
-
-        with torch.inference_mode():
-            output = model.generate(
-                **inputs, max_new_tokens=max_tokens, do_sample=False
-            )
-
-        new_tokens = output[:, inputs.input_ids.shape[1]:]
-        raw = processor.batch_decode(new_tokens, skip_special_tokens=True)[0].strip()
-        trace["final_raw"] = raw
-
-        verdict = _parse_verdict(raw)
-        if verdict is not None:
-            trace["verdict"] = verdict
-            trace["exit_reason"] = "verdict_tag"
-            return trace
-
-        parsed = _parse_tool_call(raw)
-        if parsed is None:
-            trace["exit_reason"] = "malformed_output"
-            return trace
-
-        name, args = parsed
-        if name not in VISIBLE_TOOLS:
-            trace["exit_reason"] = f"hallucinated_tool:{name}"
-            return trace
-
-        try:
-            resp = await asyncio.wait_for(
-                call_mcp_tool(mcp_client, name, args),
-                timeout=mcp_timeout_s,
-            )
-        except asyncio.TimeoutError:
-            resp = json.dumps(
-                {"success": False, "error": f"timeout {mcp_timeout_s}s"}
-            )
-        except Exception as e:
-            resp = json.dumps({"success": False, "error": str(e)})
-
-        trace["tool_calls"].append(
-            {"name": name, "arguments": args, "response": resp}
-        )
-
-        if name in ACTION_TOOLS:
-            trace["verdict"] = "Anomaly"
-            trace["mrm_choice"] = TOOL_TO_MRM[name]
-            trace["exit_reason"] = "action_tool"
-            return trace
-
-        conversation.append({
-            "role": "assistant",
-            "content": [{"type": "text", "text": raw}],
-        })
-        conversation.append({
-            "role": "user",
-            "content": [{
-                "type": "text",
-                "text": f"<tool_response>{resp}</tool_response>",
-            }],
-        })
-
-    return trace
 
 
 # ============================================================
@@ -640,16 +513,12 @@ def generate_collage_video(
 
 
 async def main():
-    parser = argparse.ArgumentParser(description="FP16 Multiview Inference + Agentic MCP")
+    parser = argparse.ArgumentParser(description="FP16 Multiview Inference")
     parser.add_argument("--video_dir", type=str, required=True,
                         help="Root dir containing front_view/, left_view/, right_view/, back_view/")
     parser.add_argument("--model", type=str, default="nvidia/Cosmos-Reason1-7B")
     parser.add_argument("--fps", type=int, default=4)
-    parser.add_argument("--max_tokens", type=int, default=256,
-                        help="Max generation tokens per agentic turn (includes "
-                             "<tool_call> JSON + reasoning). Default 256.")
-    parser.add_argument("--max_iters", type=int, default=5,
-                        help="Cap on agentic loop iterations per clip")
+    parser.add_argument("--max_tokens", type=int, default=3)
     parser.add_argument("--target_resolution", type=str, default="250x250")
     parser.add_argument("--output_json", type=str, default=None,
                         help="Path to save JSON results (default: <video_dir>/fp16_multiview_results.json)")
@@ -664,10 +533,11 @@ async def main():
     parser.add_argument("--mcp_server", type=str, default=None,
                         help="Path to the MCP server script (default: "
                              "zenoh_autoware_mcp_server.py next to this file)")
-    parser.add_argument("--dry_run_no_mcp", action="store_true",
-                        help="Skip the agentic MCP flow entirely and run the "
-                             "legacy single-pass Anomaly/Normal classifier. "
-                             "Useful for smoke tests without Zenoh/Autoware.")
+    parser.add_argument("--no_dispatch", action="store_true",
+                        help="Run stage-2 MRM selection but skip MCP calls "
+                             "(offline eval; no Zenoh/Autoware required)")
+    parser.add_argument("--mrm_max_tokens", type=int, default=16,
+                        help="Max generation tokens for stage-2 MRM selection")
     parser.add_argument("--mcp_timeout_s", type=float, default=2.0,
                         help="Per-call MCP timeout in seconds")
     args = parser.parse_args()
@@ -685,125 +555,37 @@ async def main():
 
     model, processor = load_model(args.model)
     warmup_model(model, processor)
+    base_text = build_cached_prompt(processor)
+    mrm_prompt = build_mrm_prompt()
 
     gpu_name = torch.cuda.get_device_name(0) if torch.cuda.is_available() else "Unknown"
     compute_cap = torch.cuda.get_device_capability(0) if torch.cuda.is_available() else (0, 0)
 
     server_script = args.mcp_server or str(Path(__file__).parent / "zenoh_autoware_mcp_server.py")
-    agentic = not args.dry_run_no_mcp
-    if agentic:
-        mcp_client: MCPClient | None = MCPClient(["python3", server_script])
-        print(f"Agentic MCP mode. Client will spawn: {server_script}")
+    if args.no_dispatch:
+        mcp_client: MCPClient | None = None
+        print("MCP dispatch disabled (--no_dispatch); stage-2 MRM selection will still run.")
     else:
-        mcp_client = None
-        print("Dry-run mode (--dry_run_no_mcp): legacy single-pass binary classifier, no MCP.")
-
-    legacy_base_text: str | None = None
-    if not agentic:
-        legacy_base_text = build_cached_prompt(processor)
+        mcp_client = MCPClient(["python3", server_script])
+        print(f"MCP client will spawn: {server_script}")
 
     print(
         f"Found {len(clips)} synchronized clip sets (4 views each) "
-        f"— {'agentic MCP' if agentic else 'legacy classifier'} mode\n" + "=" * 50
+        f"— running FP16 multiview inference\n" + "=" * 50
     )
 
-    results: list[dict] = []
+    results = []
     total_load_time = 0.0
     total_inference_time = 0.0
-    total_iterations = 0
+    total_stage2_time = 0.0
     counts = {"Anomaly": 0, "Normal": 0, "Unknown": 0, "Error": 0}
     mrm_counts = {k: 0 for k in MRM_CHOICES}
     mcp_failures = 0
     metrics = Metrics()
     overall_start = time.time()
-    system_prompt: str | None = None
 
-    async def run_agentic_clips() -> None:
-        nonlocal total_load_time, total_inference_time, total_iterations, mcp_failures
-
-        assert mcp_client is not None and system_prompt is not None
-
-        for i, (clip_id, view_paths) in enumerate(clips, 1):
-            clip_name = f"clip_{clip_id}"
-
-            try:
-                load_start = time.time()
-                prefetched = load_multiview_videos(view_paths, args.fps, target_resolution)
-                load_time = time.time() - load_start
-                total_load_time += load_time
-
-                inference_start = time.time()
-                trace = await analyze_agentic(
-                    model, processor, view_paths, prefetched,
-                    mcp_client, system_prompt,
-                    args.max_iters, args.max_tokens, args.mcp_timeout_s,
-                )
-                inference_time = time.time() - inference_start
-                total_inference_time += inference_time
-                total_iterations += trace["iterations"]
-
-                result = trace["verdict"]
-                counts[result] += 1
-
-                true_label = get_true_label(view_paths)
-                if (true_label is not None) and (result != "Unknown"):
-                    pred_label = 1 if result == "Anomaly" else 0
-                    metrics.update([pred_label], [true_label], [inference_time])
-
-                if trace["mrm_choice"]:
-                    mrm_counts[trace["mrm_choice"]] += 1
-
-                for tc in trace["tool_calls"]:
-                    resp = tc.get("response") or ""
-                    if '"success": false' in resp.lower():
-                        mcp_failures += 1
-
-                results.append({
-                    "clip": clip_name,
-                    "result": result,
-                    "mrm_choice": trace["mrm_choice"],
-                    "iterations": trace["iterations"],
-                    "exit_reason": trace["exit_reason"],
-                    "tool_calls": trace["tool_calls"],
-                    "final_raw": trace["final_raw"],
-                    "true_label": "Anomaly" if true_label == 1 else ("Normal" if true_label == 0 else "Unknown"),
-                    "load_time_s": round(load_time, 3),
-                    "inference_time_s": round(inference_time, 3),
-                })
-
-                tool_names = [tc["name"] for tc in trace["tool_calls"]]
-                extra = f" iters={trace['iterations']} exit={trace['exit_reason']}"
-                if tool_names:
-                    extra += f" tools={tool_names}"
-                if trace["mrm_choice"]:
-                    extra += f" MRM={trace['mrm_choice']}"
-
-                print(
-                    f"[{i}/{len(clips)}] {clip_name}: {result} "
-                    f"(Load: {load_time:.2f}s, Inference: {inference_time:.2f}s)"
-                    f"{extra}"
-                )
-
-            except Exception as e:
-                counts["Error"] += 1
-                results.append({
-                    "clip": clip_name,
-                    "result": "Error",
-                    "mrm_choice": None,
-                    "iterations": 0,
-                    "exit_reason": f"exception:{type(e).__name__}",
-                    "tool_calls": [],
-                    "final_raw": str(e),
-                    "true_label": "Unknown",
-                    "load_time_s": 0.0,
-                    "inference_time_s": 0.0,
-                })
-                print(f"[{i}/{len(clips)}] {clip_name}: ERROR - {e}")
-
-    async def run_legacy_clips() -> None:
-        nonlocal total_load_time, total_inference_time
-
-        assert legacy_base_text is not None
+    async def run_clips() -> None:
+        nonlocal total_load_time, total_inference_time, total_stage2_time, mcp_failures
 
         for i, (clip_id, view_paths) in enumerate(clips, 1):
             clip_name = f"clip_{clip_id}"
@@ -816,8 +598,7 @@ async def main():
 
                 inference_start = time.time()
                 raw = analyze_multiview(
-                    model, processor, view_paths, prefetched,
-                    args.max_tokens, legacy_base_text,
+                    model, processor, view_paths, prefetched, args.max_tokens, base_text
                 )
                 inference_time = time.time() - inference_start
                 total_inference_time += inference_time
@@ -830,23 +611,66 @@ async def main():
                     pred_label = 1 if result == "Anomaly" else 0
                     metrics.update([pred_label], [true_label], [inference_time])
 
+                mrm_choice: str | None = None
+                mrm_raw: str | None = None
+                mcp_resp: str | None = None
+                stage2_time = 0.0
+
+                if result == "Anomaly":
+                    stage2_start = time.time()
+                    mrm_raw = analyze_mrm(
+                        model, processor, view_paths, prefetched,
+                        args.mrm_max_tokens, mrm_prompt,
+                    )
+                    stage2_time = time.time() - stage2_start
+                    total_stage2_time += stage2_time
+
+                    parsed = parse_mrm(mrm_raw)
+                    mrm_choice = parsed or "EMERGENCY_STOP"
+                    if parsed is None:
+                        print(f"  [warn] MRM parser could not match {mrm_raw!r}; "
+                              f"falling back to EMERGENCY_STOP")
+                    mrm_counts[mrm_choice] += 1
+
+                    tool_name = MRM_TO_TOOL[mrm_choice]
+                    if mcp_client is not None:
+                        try:
+                            mcp_resp = await asyncio.wait_for(
+                                call_mcp_tool(mcp_client, tool_name, {}),
+                                timeout=args.mcp_timeout_s,
+                            )
+                        except asyncio.TimeoutError:
+                            mcp_failures += 1
+                            mcp_resp = f"TIMEOUT after {args.mcp_timeout_s:.1f}s"
+                        except Exception as e:
+                            mcp_failures += 1
+                            mcp_resp = f"ERROR: {e}"
+                    else:
+                        mcp_resp = "skipped (--no_dispatch)"
+
                 results.append({
                     "clip": clip_name,
                     "result": result,
-                    "mrm_choice": None,
-                    "iterations": 1,
-                    "exit_reason": "legacy_classifier",
-                    "tool_calls": [],
-                    "final_raw": raw,
+                    "raw_output": raw,
                     "true_label": "Anomaly" if true_label == 1 else ("Normal" if true_label == 0 else "Unknown"),
                     "load_time_s": round(load_time, 3),
                     "inference_time_s": round(inference_time, 3),
+                    "mrm_choice": mrm_choice,
+                    "mrm_raw": mrm_raw,
+                    "mrm_mcp_response": mcp_resp,
+                    "stage2_inference_time_s": round(stage2_time, 3),
                 })
+
+                extra = ""
+                if mrm_choice:
+                    extra = f" MRM={mrm_choice} ({stage2_time:.2f}s)"
+                    if mcp_resp is not None:
+                        extra += f" mcp={mcp_resp[:80]!r}"
 
                 print(
                     f"[{i}/{len(clips)}] {clip_name}: {result} "
                     f"(Load: {load_time:.2f}s, Inference: {inference_time:.2f}s) "
-                    f"(raw: {raw!r})"
+                    f"(raw: {raw!r}){extra}"
                 )
 
             except Exception as e:
@@ -854,47 +678,40 @@ async def main():
                 results.append({
                     "clip": clip_name,
                     "result": "Error",
-                    "mrm_choice": None,
-                    "iterations": 0,
-                    "exit_reason": f"exception:{type(e).__name__}",
-                    "tool_calls": [],
-                    "final_raw": str(e),
+                    "raw_output": str(e),
                     "true_label": "Unknown",
                     "load_time_s": 0.0,
                     "inference_time_s": 0.0,
+                    "mrm_choice": None,
+                    "mrm_raw": None,
+                    "mrm_mcp_response": None,
+                    "stage2_inference_time_s": 0.0,
                 })
                 print(f"[{i}/{len(clips)}] {clip_name}: ERROR - {e}")
 
-    if agentic:
-        async with mcp_client:  # type: ignore[arg-type]
-            catalog_text, _schemas = await fetch_tool_catalog(mcp_client)
-            system_prompt = build_agent_system_prompt(catalog_text)
-            print("Tool catalog registered with VLM:")
-            for line in catalog_text.splitlines():
-                print(f"  {line}")
-            print("=" * 50)
-            await run_agentic_clips()
+    if mcp_client is not None:
+        async with mcp_client:
+            await run_clips()
     else:
-        await run_legacy_clips()
+        await run_clips()
 
     total_time = time.time() - overall_start
 
     output_data = {
         "config": {
             "model": args.model,
-            "inference_mode": "FP16 multiview + agentic MCP" if agentic else "FP16 multiview (legacy dry-run)",
+            "inference_mode": "FP16 multiview + MRM dispatch",
             "views": len(VIEW_DIRS),
             "view_dirs": list(VIEW_DIRS),
             "fps": args.fps,
             "max_tokens": args.max_tokens,
-            "max_iters": args.max_iters,
+            "mrm_max_tokens": args.mrm_max_tokens,
             "target_resolution": args.target_resolution,
             "compute_type": "bfloat16",
             "gpu": gpu_name,
             "compute_capability": f"{compute_cap[0]}.{compute_cap[1]}",
-            "mcp_server": server_script if agentic else None,
-            "mcp_dispatch_enabled": agentic,
-            "visible_tools": list(VISIBLE_TOOLS) if agentic else [],
+            "mcp_server": server_script,
+            "mcp_dispatch_enabled": mcp_client is not None,
         },
         "summary": {
             "total_clips": len(clips),
@@ -906,10 +723,9 @@ async def main():
             "comfortable_stops": mrm_counts["COMFORTABLE_STOP"],
             "pull_overs": mrm_counts["PULL_OVER"],
             "mcp_failures": mcp_failures,
-            "total_iterations": total_iterations,
-            "avg_iterations": round(total_iterations / max(len(clips), 1), 3),
             "total_load_time_s": round(total_load_time, 3),
             "total_inference_time_s": round(total_inference_time, 3),
+            "total_stage2_inference_time_s": round(total_stage2_time, 3),
             "total_time_s": round(total_time, 3),
             "avg_inference_time_s": round(total_inference_time / max(len(clips), 1), 3),
         },
@@ -921,26 +737,23 @@ async def main():
         json.dump(output_data, f, indent=2)
 
     print("=" * 50)
-    mode_label = "Agentic MCP" if agentic else "Legacy dry-run"
-    print(f"\nSUMMARY — FP16 Multiview Inference ({len(VIEW_DIRS)} views, {mode_label})")
+    print(f"\nSUMMARY — FP16 Multiview Inference ({len(VIEW_DIRS)} views)")
     print("=" * 50)
     print(f"Total clips: {len(clips)}")
     print(f"  - Anomaly: {counts['Anomaly']}")
-    print(f"  - Normal:  {counts['Normal']}")
+    print(f"  - Normal: {counts['Normal']}")
     print(f"  - Unknown: {counts['Unknown']}")
-    print(f"  - Errors:  {counts['Error']}")
-    if agentic:
-        print(f"\nMRM DISPATCH")
-        print(f"  - EMERGENCY_STOP:   {mrm_counts['EMERGENCY_STOP']}")
-        print(f"  - COMFORTABLE_STOP: {mrm_counts['COMFORTABLE_STOP']}")
-        print(f"  - PULL_OVER:        {mrm_counts['PULL_OVER']}")
+    print(f"  - Errors: {counts['Error']}")
+    print(f"\nMRM DISPATCH")
+    print(f"  - EMERGENCY_STOP:   {mrm_counts['EMERGENCY_STOP']}")
+    print(f"  - COMFORTABLE_STOP: {mrm_counts['COMFORTABLE_STOP']}")
+    print(f"  - PULL_OVER:        {mrm_counts['PULL_OVER']}")
+    if mcp_client is not None:
         print(f"  - MCP failures:     {mcp_failures}")
-        print(f"\nAgentic loop:")
-        print(f"  - Total iterations: {total_iterations}")
-        print(f"  - Avg per clip:     {total_iterations / max(len(clips), 1):.2f}")
     print(f"\nTotal load time: {total_load_time:.2f}s")
-    print(f"Total inference time: {total_inference_time:.2f}s")
-    print(f"Average inference time: {total_inference_time / max(len(clips), 1):.2f}s per clip")
+    print(f"Total stage-1 inference time: {total_inference_time:.2f}s")
+    print(f"Total stage-2 (MRM) inference time: {total_stage2_time:.2f}s")
+    print(f"Average stage-1 inference time: {total_inference_time / max(len(clips), 1):.2f}s per clip")
 
     if metrics.count > 0:
         m = metrics.compute()
